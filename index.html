@@ -1,0 +1,902 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Britain Words</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Overpass:wght@600;800;900&display=swap">
+<style>
+/* Layout: one-screen game. Sky band at top (region + grid), letter wheel anchored at bottom. Single deliberate look: dusk sky per region. */
+:root{
+  --ink:#10162b;
+  --tile:#ffffff;
+  --tile-empty:rgba(255,255,255,.22);
+  --gold:#ffd100;
+  --gold-deep:#8a6a00;
+  --wheel:#ffffff;
+  --sel:#d4202f;
+  --sky1:#2f5d8a; --sky2:#e9a66b;
+  --panel:#ffffff;
+  --muted:#5b6478;
+  --f-display:"Barlow Condensed", "Arial Narrow", Impact, sans-serif;
+  --f-ui:"Overpass", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{
+  margin:0;background:var(--sky1);color:var(--ink);font-family:var(--f-ui);
+  overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+}
+.app{
+  position:relative;height:100%;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,var(--sky1) 0%,color-mix(in oklab,var(--sky1) 45%,var(--sky2)) 55%,var(--sky2) 100%);
+  transition:background .6s;
+}
+.scene{position:absolute;inset:auto 0 0 0;height:42%;pointer-events:none;opacity:.55}
+.screen{position:relative;flex:1;display:flex;flex-direction:column;min-height:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px 12px}
+.screen[hidden]{display:none!important}
+
+/* top bar */
+.bar{display:flex;align-items:center;gap:10px;color:#fff;min-height:44px}
+.bar .title{flex:1;min-width:0;text-align:center;line-height:1.1}
+.bar .title b{display:block;font-family:var(--f-display);font-weight:800;font-size:1.35rem;letter-spacing:.01em;text-wrap:balance}
+.bar .title small{font-weight:800;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.icon-btn{width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.2);color:#fff;display:grid;place-items:center;cursor:pointer;flex:none}
+.icon-btn:focus-visible,.btn:focus-visible,.tool:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.coins{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.25);color:#fff;border-radius:99px;padding:6px 12px 6px 6px;font-weight:900;font-variant-numeric:tabular-nums;flex:none}
+.coin{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9a3,var(--gold) 55%,var(--gold-deep));box-shadow:inset 0 -2px 0 rgba(0,0,0,.18);display:inline-block;flex:none}
+
+/* grid */
+.board{flex:1;min-height:0;display:grid;place-items:center;padding:8px 0}
+.grid{position:relative}
+.cell{position:absolute;border-radius:50%;background:var(--tile-empty);display:grid;place-items:center;
+  font-weight:900;color:var(--ink);text-transform:uppercase;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.35)}
+.cell.on{background:var(--tile);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+.cell.on span{animation:pop .35s ease-out both}
+.cell.hint span{color:var(--gold-deep)}
+.cell.flash{animation:flash .6s}
+@keyframes pop{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+@keyframes flash{50%{background:#ffe08a}}
+
+/* preview */
+.preview{height:46px;display:flex;justify-content:center;align-items:center}
+.preview .pill{background:var(--sel);color:#fff;font-weight:900;font-size:1.5rem;letter-spacing:.12em;text-transform:uppercase;
+  padding:4px 16px;border-radius:12px;min-width:20px;text-align:center}
+.preview .pill.ok{background:#2e9b63}
+.preview .pill.bonus{background:var(--gold-deep)}
+.preview .pill.dup{background:#7a849a}
+.preview .pill.bad{animation:shake .4s}
+.toast{color:#fff;font-weight:800;font-size:.95rem;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+
+/* wheel row */
+.play{display:grid;grid-template-columns:56px minmax(0,1fr) 56px;align-items:end;gap:6px}
+.tools{display:flex;flex-direction:column;gap:12px;align-items:center}
+.tool{position:relative;width:52px;height:52px;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:var(--ink);
+  display:grid;place-items:center;cursor:pointer;box-shadow:0 3px 0 rgba(0,0,0,.18)}
+.tool:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.18)}
+.tool .cost{position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.68rem;font-weight:900;border-radius:99px;padding:1px 7px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tool .badge{position:absolute;top:-4px;right:-4px;background:var(--sel);color:#fff;font-size:.7rem;font-weight:900;border-radius:99px;min-width:20px;height:20px;display:grid;place-items:center;padding:0 5px}
+.meter{position:absolute;left:4px;right:4px;bottom:4px;height:4px;border-radius:2px;background:rgba(0,0,0,.12);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--gold);width:0;transition:width .3s}
+.wheel{position:relative;justify-self:center;width:min(78vw,300px,38vh);aspect-ratio:1;max-width:100%;touch-action:none;cursor:pointer}
+.wheel .disc{position:absolute;inset:0;border-radius:50%;background:var(--wheel);box-shadow:0 8px 30px rgba(0,0,0,.18)}
+.wheel svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.letter{position:absolute;width:24%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;
+  font-weight:900;color:var(--ink);text-transform:uppercase;transition:background .12s,color .12s,left .35s,top .35s}
+.letter.sel{background:var(--sel);color:#fff}
+
+/* home */
+.home{justify-content:center;align-items:center;text-align:center;gap:18px;color:#fff}
+.logo{font-family:var(--f-display);font-size:clamp(2.3rem,11vw,4rem);line-height:.95;margin:0;text-shadow:0 3px 0 rgba(0,0,0,.18)}
+.logo span{display:block;font-family:var(--f-ui);font-weight:900;font-size:.3em;letter-spacing:.32em;text-transform:uppercase;margin-top:10px;opacity:.9}
+.flag{border-radius:6px;box-shadow:0 3px 0 rgba(0,0,0,.25),0 0 0 2px rgba(255,255,255,.8);margin-bottom:-6px}
+.ukmap{display:flex;flex-direction:column;align-items:center;gap:4px;margin:-4px 0}
+.ukmap svg{height:min(17vh,150px);width:auto;filter:drop-shadow(0 3px 6px rgba(0,0,0,.25))}
+.ukmap small{font-weight:800;font-size:.78rem;letter-spacing:.06em;opacity:.95}
+.home{gap:12px!important}
+@media (max-height:800px){.tagline{display:none}}
+@media (max-height:660px){.ukmap svg{height:min(14vh,110px)}.btn{padding:10px 18px!important}.btn.primary{padding:13px!important}.menu{gap:8px!important}}
+.tagline{max-width:30ch;margin:0 auto;font-weight:700;opacity:.92;line-height:1.4}
+.menu{display:flex;flex-direction:column;gap:12px;width:min(320px,100%)}
+.btn{border:0;border-radius:16px;padding:14px 18px;font-family:var(--f-ui);font-weight:900;font-size:1.05rem;cursor:pointer;
+  background:var(--tile);color:var(--ink);box-shadow:0 4px 0 rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;gap:10px}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.2)}
+.btn.primary{background:var(--gold);font-size:1.25rem;padding:18px}
+.btn small{font-weight:700;opacity:.7;font-size:.8rem}
+.btn[disabled]{opacity:.55;cursor:default}
+
+/* trail */
+.trail{overflow-y:auto;flex:1;min-height:0;padding:8px 0 20px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch}
+.stop{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;background:rgba(255,255,255,.9);border-radius:16px;padding:10px 14px;border:0;font-family:var(--f-ui);text-align:left;color:var(--ink);cursor:pointer}
+.stop[disabled]{background:rgba(255,255,255,.35);color:rgba(29,36,51,.6);cursor:default}
+.stop .n{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:900;color:#fff;font-variant-numeric:tabular-nums}
+.stop b{font-family:var(--f-display);font-weight:800;font-size:1.15rem;display:block}
+.stop small{font-size:.75rem;font-weight:700;color:var(--muted)}
+.dots{display:flex;gap:5px}
+.dots i{width:10px;height:10px;border-radius:50%;background:rgba(29,36,51,.15)}
+.dots i.done{background:#2e9b63}
+
+/* overlay */
+.overlay{position:absolute;inset:0;background:rgba(15,20,32,.55);display:grid;place-items:center;z-index:20;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px}
+.overlay[hidden]{display:none!important}
+.card{background:var(--panel);border-radius:22px;padding:22px 20px;width:min(380px,100%);max-height:100%;overflow:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3);animation:rise .35s ease-out}
+@keyframes rise{from{transform:translateY(24px);opacity:0}}
+.card h2{font-family:var(--f-display);font-weight:800;font-size:2rem;margin:0 0 6px;text-wrap:balance}
+.card p{line-height:1.45;margin:8px 0;color:var(--muted);font-weight:600}
+.card .reward{display:inline-flex;align-items:center;gap:8px;font-weight:900;font-size:1.3rem;margin:8px 0 14px}
+.postcard{margin:14px 0;border-radius:14px;padding:16px;text-align:left;color:#fff;position:relative;overflow:hidden}
+.postcard small{font-weight:900;letter-spacing:.16em;text-transform:uppercase;font-size:.68rem;opacity:.9}
+.postcard b{display:block;font-family:var(--f-display);font-weight:800;font-size:1.5rem;margin:2px 0 6px}
+.postcard p{color:#fff;margin:0;font-weight:700}
+.stamp{position:absolute;right:12px;top:12px;width:46px;height:54px;border:2px dashed rgba(255,255,255,.7);border-radius:4px;display:grid;place-items:center;font-family:var(--f-display);font-size:1.4rem}
+.bonus-list{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:12px 0}
+.bonus-list span{background:#f1ecdf;border-radius:8px;padding:4px 9px;font-weight:800;text-transform:uppercase;font-size:.85rem;letter-spacing:.05em}
+.card .btn{width:100%;margin-top:8px}
+.rules{text-align:left;color:var(--muted);font-weight:600;line-height:1.5;padding-left:20px;margin:8px 0}
+.rules li{margin:4px 0}
+
+.stop .n.done{box-shadow:0 0 0 3px #2e9b63}
+.stop .prog{font-weight:900;font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.prov{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;background:rgba(255,255,255,.92);border-radius:14px;padding:10px 14px;border:0;font-family:var(--f-ui);text-align:left;color:var(--ink);cursor:pointer}
+.prov[disabled]{background:rgba(255,255,255,.35);color:rgba(29,36,51,.55);cursor:default}
+.prov .sig{width:44px;height:32px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:900;letter-spacing:.06em;font-size:.85rem}
+.prov[disabled] .sig{background:rgba(29,36,51,.35)}
+.prov b{font-weight:900;font-size:1rem;display:block}
+.prov small{font-size:.72rem;font-weight:700;color:var(--muted)}
+.prov .st{font-weight:900;color:#2e9b63;font-size:1.1rem}
+.prov.bonus{background:linear-gradient(135deg,#ffe08a,var(--gold));}
+.prov.bonus .sig{background:var(--gold-deep)}
+.prov.bonus[disabled]{background:rgba(255,224,138,.4)}
+.region-head{color:#fff;text-align:center;padding:4px 0 6px}
+.region-head p{margin:2px 0 0;font-weight:700;opacity:.9;font-size:.9rem}
+.chest{font-size:0;width:64px;height:52px;margin:6px auto 2px;position:relative}
+.chest::before{content:"";position:absolute;inset:18px 4px 0;border-radius:6px;background:linear-gradient(#a8642a,#7b4419);box-shadow:inset 0 0 0 3px #f2b632}
+.chest::after{content:"";position:absolute;left:4px;right:4px;top:4px;height:18px;border-radius:14px 14px 4px 4px;background:linear-gradient(#c27a35,#9a5522);box-shadow:inset 0 0 0 3px #f2b632;transform-origin:bottom left;animation:lid .7s .2s ease-out both}
+@keyframes lid{to{transform:rotate(-24deg) translateY(-4px)}}
+.album{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:12px 0;text-align:left}
+.album .postcard{margin:0;padding:12px;min-height:90px}
+.album .postcard b{font-size:1.05rem}
+.album .postcard p{font-size:.78rem;font-weight:700}
+.album .locked{background:#e9e6df;color:#8a8f9c;border-radius:14px;padding:12px;font-weight:800;display:grid;place-items:center;min-height:90px;text-align:center;font-size:.85rem}
+.btn.hunt{background:linear-gradient(135deg,#2a2350,#5b3a8a);color:#fff}
+.btn.hunt small{opacity:.85}
+.cell.tok{box-shadow:inset 0 0 0 2.5px var(--gold)}
+.cell.tok::after{content:"";position:absolute;top:12%;right:12%;width:22%;height:22%;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold)}
+.cell.got{animation:got .7s}
+@keyframes got{40%{background:var(--gold);transform:scale(1.15)}}
+.hunt-card{background:linear-gradient(180deg,#1b1733,#2c2450 60%,#171329);color:#fff;text-align:center}
+.hunt-card h2{color:#fff;letter-spacing:.02em}
+.hunt-card p{color:rgba(255,255,255,.8)}
+.hunt-time{display:inline-flex;gap:6px;align-items:center;font-weight:900;font-size:1.05rem;font-variant-numeric:tabular-nums;background:rgba(255,255,255,.1);border-radius:99px;padding:4px 14px;margin:4px 0 8px}
+.hunt-theme{font-family:var(--f-display);font-size:1.6rem;margin:10px 0 2px;color:#ffd66b}
+.hwords{display:flex;flex-wrap:wrap;gap:12px 18px;justify-content:center;margin:14px 0}
+.hword{display:flex;gap:4px}
+.hword i{width:24px;height:28px;border-radius:6px;background:#8d8a9c;display:grid;place-items:center;font-style:normal;font-weight:900;text-transform:uppercase;color:var(--ink);font-size:.95rem}
+.hword i.on{background:var(--gold)}
+.hword.done i{background:#7fd1a1}
+.hbar{position:relative;height:26px;border-radius:99px;background:#0d0b18;border:2px solid #fff;margin:18px 30px 14px 0}
+.hbar .fill{position:absolute;inset:0 auto 0 0;border-radius:99px;background:linear-gradient(90deg,#f2b632,#ffd66b);transition:width .4s}
+.hbar .lbl{position:absolute;inset:0;display:grid;place-items:center;font-weight:900;font-size:.85rem;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000}
+.hbar .ms{position:absolute;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:#0d0b18;border:2px solid #fff;display:grid;place-items:center;font-size:.6rem;font-weight:900}
+.hbar .ms.ok{background:#2e9b63}
+.hbar .gift{position:absolute;right:-30px;top:50%;margin-top:-20px;width:40px;height:40px;border-radius:8px;background:#b54be0;box-shadow:inset 0 0 0 0 transparent}
+.hbar .gift::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:7px;margin-left:-3.5px;background:var(--gold)}
+.hbar .gift::after{content:"";position:absolute;left:0;right:0;top:14px;height:7px;background:var(--gold)}
+.hbar .gift.ok{background:#2e9b63}
+.hunt-rew{font-size:.8rem;color:rgba(255,255,255,.75);font-weight:700}
+.hunt-card .btn.primary{background:#19c6e0;color:#08303a}
+.cityinfo{text-align:left;margin:12px 0;border-radius:16px;background:#f3f1ec;overflow:hidden}
+.cityinfo .map{background:#dbe7f0;display:flex;justify-content:center;padding:10px 0 4px}
+.cityinfo .map svg{height:210px;width:auto;max-width:100%}
+.cityinfo .txt{padding:12px 14px 14px}
+.cityinfo small{font-weight:900;letter-spacing:.12em;text-transform:uppercase;font-size:.66rem;color:var(--muted)}
+.cityinfo b{display:block;font-family:var(--f-display);font-weight:800;font-size:1.45rem;margin:2px 0 4px;color:var(--ink)}
+.cityinfo p{margin:0;color:#3a4152;font-weight:600;font-size:.92rem;line-height:1.5;text-align:left}
+.cityinfo .where{margin-top:8px;font-size:.8rem;color:var(--muted)}
+.provrow{display:flex;gap:8px;align-items:stretch}
+.provrow .prov{flex:1;min-width:0}
+.infobtn{flex:none;width:52px;border:0;border-radius:14px;background:rgba(255,255,255,.92);color:var(--ink);font-family:var(--f-display);font-size:1.3rem;cursor:pointer}
+@keyframes ping{0%{r:14;opacity:.8}100%{r:46;opacity:0}}
+.ping{animation:ping 1.6s ease-out infinite}
+.viewmode .wheel{opacity:.35;pointer-events:none}
+.viewmode #shuffleBtn,.viewmode #hintBtn,.viewmode #rocketBtn{opacity:.35;pointer-events:none}
+.preview .btn.replay{padding:8px 18px;font-size:.95rem;width:auto}
+.bonus-tag{display:inline-block;background:var(--gold);color:var(--ink);border-radius:99px;padding:2px 10px;font-weight:900;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase}
+
+/* v2 */
+/* ===== Road-sign look: flat panels, survey grid, roundel wheel ===== */
+.app{background-color:var(--sky1);background-image:linear-gradient(rgba(255,255,255,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.07) 1px,transparent 1px);background-size:34px 34px}
+.scene{display:none}
+.bar{border-bottom:3px solid var(--sky2);padding-bottom:8px}
+.bar .title b{font-weight:800;font-size:1.6rem;text-transform:uppercase;letter-spacing:.04em}
+.bar .title small{letter-spacing:.2em;color:var(--sky2);opacity:1}
+.icon-btn{border-radius:8px;background:#fff;color:var(--ink)}
+.coins{border-radius:8px;background:#fff;color:var(--ink);padding:6px 12px 6px 8px}
+.coin{background:var(--gold);box-shadow:inset 0 0 0 3px #e6b800,inset 0 0 0 5px rgba(0,0,0,.18)}
+.cell{border-radius:7px;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 2px rgba(255,255,255,.28)}
+.cell.on{background:#fff;box-shadow:0 3px 0 rgba(0,0,0,.35)}
+.cell.on span{font-family:var(--f-display);font-weight:800}
+.cell.hint span{color:#b3261e}
+.cell.tok{box-shadow:inset 0 0 0 3px var(--gold)}
+.preview .pill{border-radius:6px;font-family:var(--f-display);font-weight:800}
+.wheel .disc{background:#fff;box-shadow:inset 0 0 0 11px #d4202f,0 8px 0 rgba(0,0,0,.28)}
+.letter{font-family:var(--f-display);font-weight:800}
+.letter.sel{background:#1c3f94;color:#fff}
+.tool{border-radius:10px;background:#fff;box-shadow:0 4px 0 rgba(0,0,0,.35)}
+.tool .cost{border-radius:4px;background:var(--gold);color:var(--ink)}
+.logo{font-weight:800;text-transform:uppercase;letter-spacing:.03em;line-height:.86;font-size:clamp(3.4rem,17vw,5.6rem);text-shadow:none}
+.logo span{display:inline-block;background:#fff;color:var(--ink);padding:6px 12px;border-radius:5px;letter-spacing:.16em;font-size:.2em;margin-top:14px;opacity:1}
+.flag{border-radius:3px}
+.tagline{opacity:1;font-weight:600}
+.btn{border-radius:8px;background:rgba(0,0,0,.3);color:#fff;box-shadow:inset 0 0 0 2.5px #fff,0 4px 0 rgba(0,0,0,.35);text-transform:uppercase;letter-spacing:.08em;font-weight:800;font-size:.95rem}
+.btn:active{box-shadow:inset 0 0 0 2.5px #fff,0 1px 0 rgba(0,0,0,.35)}
+.btn.primary{background:var(--gold);color:var(--ink);box-shadow:inset 0 0 0 3px var(--ink),0 4px 0 rgba(0,0,0,.35);font-size:1.3rem}
+.btn.hunt{background:#1b1733;color:#fff}
+.card .btn,.hunt-card .btn{box-shadow:inset 0 0 0 2.5px currentColor,0 4px 0 rgba(0,0,0,.2)}
+.card .btn:not(.primary):not(.hunt){background:#fff;color:var(--ink)}
+.stop,.prov,.infobtn{border-radius:8px;background:#fff}
+.stop[disabled],.prov[disabled]{background:rgba(255,255,255,.28)}
+.stop .n{border-radius:6px;font-family:var(--f-display);font-size:1.2rem}
+.stop b,.prov b{font-family:var(--f-display);font-size:1.3rem;text-transform:uppercase;letter-spacing:.03em}
+.prov .sig{border-radius:4px;background:#1c3f94;font-family:var(--f-display);font-size:1rem}
+.prov.bonus{background:var(--gold)}
+.prov.bonus .sig{background:var(--ink)}
+.card{border-radius:12px;border-top:10px solid var(--gold)}
+.card h2{font-weight:800;text-transform:uppercase;letter-spacing:.03em;font-size:2.2rem}
+.postcard{border-radius:6px}
+.postcard b{text-transform:uppercase;letter-spacing:.03em}
+.album .postcard,.album .locked,.cityinfo,.bonus-list span{border-radius:6px}
+.cityinfo b{text-transform:uppercase;letter-spacing:.03em}
+.bonus-tag{border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="app" id="app">
+  <svg class="scene" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 130 L60 90 L110 120 L170 70 L230 115 L290 80 L350 110 L400 85 L400 200 L0 200Z" fill="rgba(255,255,255,.18)"/>
+    <path d="M0 160 Q100 125 200 150 T400 140 L400 200 L0 200Z" fill="rgba(0,0,0,.12)"/>
+  </svg>
+
+  <!-- HOME -->
+  <section class="screen home" id="home">
+    <div class="coins" style="position:absolute;top:10px;right:max(16px,env(safe-area-inset-right,0px))"><i class="coin"></i><span class="coinval">0</span></div>
+    <h1 class="logo">BRITAIN<br>WORDS<span>A word tour of Britain</span></h1>
+    <svg class="flag" viewBox="0 0 60 30" width="84" height="42" role="img" aria-label="Union Jack"><clipPath id="fc"><path d="M0 0h60v30H0z"/></clipPath><g clip-path="url(#fc)"><path d="M0 0v30h60V0z" fill="#012169"/><path d="M0 0l60 30m0-30L0 30" stroke="#fff" stroke-width="6"/><path d="M0 0l60 30m0-30L0 30" stroke="#C8102E" stroke-width="2" clip-path="url(#fc)"/><path d="M30 0v30M0 15h60" stroke="#fff" stroke-width="10"/><path d="M30 0v30M0 15h60" stroke="#C8102E" stroke-width="6"/></g></svg>
+    <p class="tagline">Join the letters on the wheel and fill the grid. Ten stages, 79 cities and 10 bonus levels. Every city you complete tells you its story and shows where it is on the map.</p>
+    <div class="ukmap" id="ukmap" aria-live="polite"></div>
+    <div class="menu">
+      <button class="btn primary" id="playBtn" type="button">Play</button>
+      <button class="btn hunt" id="huntBtn" type="button" hidden>Letter hunt</button>
+      <button class="btn" id="dailyBtn" type="button">Daily challenge</button>
+      <button class="btn" id="trailBtn" type="button">The route</button>
+      <button class="btn" id="albumBtn" type="button">Postcard album</button>
+      <button class="btn" id="helpBtn" type="button">How to play</button>
+    </div>
+  </section>
+
+  <!-- TRAIL -->
+  <section class="screen" id="trail" hidden>
+    <div class="bar">
+      <button class="icon-btn back" type="button" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="title"><small>Stages</small><b>The route</b></div>
+      <div class="coins"><i class="coin"></i><span class="coinval">0</span></div>
+    </div>
+    <div class="trail" id="trailList"></div>
+  </section>
+
+  <!-- REGION -->
+  <section class="screen" id="region" hidden>
+    <div class="bar">
+      <button class="icon-btn" id="regionBack" type="button" aria-label="Back to the route"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="title"><small id="rSub">Stage 1</small><b id="rTitle">Stage</b></div>
+      <div class="coins"><i class="coin"></i><span class="coinval">0</span></div>
+    </div>
+    <div class="trail" id="provList"></div>
+  </section>
+
+  <!-- GAME -->
+  <section class="screen" id="game" hidden>
+    <div class="bar">
+      <button class="icon-btn back" type="button" aria-label="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="title"><small id="gSub">Level 1</small><b id="gTitle">London</b></div>
+      <div class="coins"><i class="coin"></i><span class="coinval">0</span></div>
+    </div>
+    <div class="board" id="board"><div class="grid" id="grid"></div></div>
+    <div class="preview" id="preview"></div>
+    <div class="play">
+      <div class="tools">
+        <button class="tool" id="bonusBtn" type="button" aria-label="Bonus words">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 8h6"/></svg>
+          <span class="badge" id="bonusCount">0</span>
+          <span class="meter"><i id="meter"></i></span>
+        </button>
+        <button class="tool" id="shuffleBtn" type="button" aria-label="Shuffle letters">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+        </button>
+      </div>
+      <div class="wheel" id="wheel"><div class="disc"></div><svg id="lines"></svg></div>
+      <div class="tools">
+        <button class="tool" id="rocketBtn" type="button" aria-label="Rocket: reveal 4 letters">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2"/><path d="M9 15l-3-3c1-4 5-9 13-9 0 8-5 12-9 13z"/><circle cx="15" cy="9" r="1.5"/></svg>
+          <span class="cost">60</span>
+        </button>
+        <button class="tool" id="hintBtn" type="button" aria-label="Reveal a letter">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/></svg>
+          <span class="cost">25</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+</div>
+
+<script>
+const DATA = {"levels":[{"letters":"ortsp","h":4,"w":6,"words":[["ports",2,1,"H"],["tops",0,1,"V"],["post",0,5,"V"],["port",0,3,"V"],["stop",0,0,"H"]],"bonus":["opts","orts","pot","pots","pros","rots","sort","sport","spot","stor","strop","top","tors"]},{"letters":"bdteu","h":5,"w":5,"words":[["tubed",0,0,"H"],["debut",0,4,"V"],["bed",0,2,"V"],["debt",4,1,"H"],["tube",0,0,"V"]],"bonus":["bet","but","due","duet","tub"]},{"letters":"tasel","h":4,"w":6,"words":[["least",2,0,"H"],["tale",0,0,"V"],["lets",0,4,"V"],["seal",0,2,"V"],["sale",0,2,"H"]],"bonus":["ales","alts","ate","east","eat","eats","etas","lase","last","late","lats","leas","lest","let","salt","sat","sate","sea","seat","set","seta","slat","slate","stale","steal","stela","tael","tales","tea","teal","teals","teas","tels","tesla"]},{"letters":"atesf","h":5,"w":5,"words":[["feast",3,0,"H"],["east",0,4,"V"],["seat",1,2,"V"],["safe",1,0,"V"],["sea",1,2,"H"]],"bonus":["ate","eat","eats","efts","etas","fast","fat","fate","fates","fats","feat","feats","fest","feta","sat","sate","set","seta","tea","teas"]},{"letters":"itres","h":5,"w":5,"words":[["tries",2,0,"H"],["ties",1,2,"V"],["rest",4,0,"H"],["sit",0,0,"V"],["rise",0,4,"V"]],"bonus":["erst","resit","rets","rite","rites","set","sir","sire","site","ster","stir","tie","tier","tiers","tire","tires","tres"]},{"letters":"trewa","h":4,"w":5,"words":[["water",0,0,"H"],["rate",0,4,"V"],["tear",0,2,"V"],["tea",2,0,"H"],["wet",0,0,"V"]],"bonus":["art","ate","ear","eat","era","rat","raw","tare","war","ware","wart","wear","wert"]},{"letters":"athes","h":5,"w":5,"words":[["hates",3,0,"H"],["haste",0,2,"V"],["east",1,4,"V"],["hate",1,1,"H"],["the",2,0,"V"]],"bonus":["ate","eat","eats","etas","hast","hat","hats","heat","heats","hest","sat","sate","sea","seat","set","seta","she","tea","teas"]},{"letters":"etrad","h":4,"w":6,"words":[["trade",0,0,"H"],["date",0,3,"V"],["read",0,1,"V"],["tea",2,3,"H"],["rat",1,5,"V"]],"bonus":["art","ate","dare","dart","dater","dear","drat","ear","eat","era","rate","rated","red","retd","tare","tared","tear","trad","tread"]},{"letters":"rtpsa","h":4,"w":5,"words":[["traps",2,0,"H"],["past",0,4,"V"],["trap",0,2,"V"],["rats",0,0,"V"],["rat",0,0,"H"]],"bonus":["art","arts","astr","pars","part","parts","pats","prat","prats","raps","rapt","rasp","sat","spar","spat","sprat","star","strap","tap","taps","tarp","tarps","tars"]},{"letters":"dmtsoe","h":5,"w":7,"words":[["modest",0,0,"H"],["domes",0,2,"V"],["most",0,0,"V"],["modes",2,2,"H"],["toed",0,5,"V"],["set",4,2,"H"],["toe",3,0,"H"]],"bonus":["demo","does","dome","dose","dost","dot","dote","dotes","dots","emos","mdse","met","mode","mods","mote","motes","mots","odes","smote","some","stem","teds","toes","tome","tomes","toms"]},{"letters":"alydpe","h":5,"w":8,"words":[["played",4,2,"H"],["pedal",0,3,"V"],["delay",0,5,"V"],["paled",0,7,"V"],["leap",0,0,"H"],["lead",2,0,"H"],["lay",2,0,"V"]],"bonus":["aped","dale","day","deal","lade","lady","lap","pad","pale","paly","pay","payed","peal","play","plea","plead","yeld","yelp"]},{"letters":"amttre","h":6,"w":6,"words":[["matter",3,0,"H"],["treat",1,4,"V"],["rate",5,2,"H"],["meat",0,2,"V"],["eat",1,2,"H"],["mat",3,0,"V"],["arm",0,0,"H"]],"bonus":["armet","art","ate","ear","era","mare","mart","mate","mater","matte","met","meta","rat","ream","tame","tamer","tare","tart","tater","tea","team","tear","teat","term","tetra","tram","tret"]},{"letters":"ramseg","h":5,"w":8,"words":[["gamers",1,0,"H"],["gears",0,3,"V"],["games",0,1,"V"],["gear",3,0,"H"],["sea",1,5,"V"],["ear",2,5,"H"],["era",1,7,"V"]],"bonus":["age","ages","ares","arm","arms","ears","eras","ergs","game","gamer","gars","gas","gems","germ","germs","gram","grams","mage","mages","mags","mare","mares","marg","marge","marges","mars","maser","meas","mega","megs","mesa","rage","rages","rags","rams","ream","reams","sage","sager","same","sarge","seam","sear","smear"]},{"letters":"natpre","h":6,"w":6,"words":[["parent",3,0,"H"],["trap",0,0,"V"],["near",2,3,"V"],["rate",1,5,"V"],["tear",5,0,"H"],["ate",3,1,"V"],["tape",0,0,"H"]],"bonus":["ante","antre","apter","arpent","art","ear","earn","eat","entrap","era","etna","nap","nape","neap","neat","net","pan","pane","pant","pare","part","pate","paten","pean","pear","peart","peat","pen","pent","pert","pet","prat","prate","pret","rant","rapt","rat","reap","rent","rept","tap","taper","tare","tarn","tarp","tea","ten","tern","trepan"]},{"letters":"esutbr","h":7,"w":6,"words":[["tubers",3,0,"H"],["tubes",0,3,"V"],["bets",0,5,"V"],["best",0,0,"V"],["sure",1,2,"H"],["user",3,1,"V"],["rest",6,1,"H"]],"bonus":["bet","brut","brute","brutes","buret","burs","burse","burst","bus","bust","buster","but","buts","erst","rebus","rebut","rets","rub","rube","rubes","rubs","rues","ruse","rust","ruts","set","ster","stub","suer","suet","tres","true","trues","tub","tube","tuber","tubs","use"]},{"letters":"dlseia","h":7,"w":6,"words":[["sailed",0,0,"H"],["aside",0,1,"V"],["ideas",2,1,"H"],["leads",4,0,"H"],["sea",4,4,"V"],["lie",0,3,"V"],["lid",4,0,"V"]],"bonus":["aid","aide","aides","aids","ailed","ails","aisle","ales","dais","dale","dales","deal","deals","deil","deli","delis","dial","dials","die","dies","idea","ideal","ideals","ides","idle","idles","ilea","isle","lade","lades","ladies","lads","laid","lase","lased","lead","leas","leis","lids","lied","lies","sad","said","sail","sale","seal","side","sidle","sild","sled","slid","slide"]},{"letters":"stamre","h":7,"w":6,"words":[["master",2,0,"H"],["stream",0,5,"V"],["meats",0,1,"H"],["smart",2,2,"V"],["rates",6,0,"H"],["meat",4,0,"H"],["art",0,3,"V"]],"bonus":["ares","arm","armet","armets","arms","arts","aster","astr","ate","ear","ears","east","eat","eats","era","eras","erst","etas","mare","mares","mars","mart","marts","maser","mast","mat","mate","mater","maters","mates","mats","meas","mesa","met","meta","rams","rat","rate","rats","ream","reams","resat","rest","rets","same","sat","sate","satem","sea","seam","sear","seat","set","seta","smear","star","stare","steam","stem","ster","tame","tamer","tamers","tames","tams","tare","tares","tars","taser","tea","team","teams","tear","tears","teas","term","terms","tram","trams","treas","tres"]},{"letters":"ysatrp","h":7,"w":6,"words":[["pastry",4,0,"H"],["prays",0,2,"V"],["taps",0,0,"H"],["traps",2,0,"H"],["spray",2,4,"V"],["pray",6,1,"H"],["tap",2,0,"V"]],"bonus":["art","arts","artsy","arty","astr","pars","part","parts","party","past","pasty","pats","patsy","pay","pays","payt","prat","prats","pyas","raps","rapt","rasp","raspy","rat","rats","ray","rays","ryas","sat","satyr","say","spar","spat","spay","sprat","spry","star","stay","strap","stray","tarp","tarps","tars","trap","tray","trays","try","yaps"]},{"letters":"rieanm","h":7,"w":6,"words":[["remain",1,0,"H"],["marine",1,2,"V"],["rain",4,0,"H"],["earn",6,2,"H"],["mine",0,4,"V"],["man",4,5,"V"],["rim",4,0,"V"]],"bonus":["aim","air","airmen","amen","amie","amine","anim","anime","arm","ear","emir","era","main","mane","mare","mean","men","mien","miner","mire","name","namer","near","ramen","ramie","ream","rein","rime"]},{"letters":"anwrse","h":5,"w":8,"words":[["answer",3,0,"H"],["warns",0,1,"V"],["nears",0,5,"V"],["earn",1,0,"H"],["news",1,3,"V"],["sew",4,5,"H"],["saw",2,7,"V"]],"bonus":["anew","ares","awes","awns","ear","earns","ears","era","eras","nares","near","new","raw","sane","saner","sawer","sea","sear","sewan","sewn","snare","swan","swear","wane","wanes","war","ware","wares","warn","wars","was","wean","weans","wear","wears","wens","wren","wrens"]},{"letters":"sritke","h":5,"w":8,"words":[["strike",3,0,"H"],["skirt",0,2,"V"],["tries",0,5,"V"],["rise",1,0,"V"],["sit",4,5,"H"],["kit",2,7,"V"],["tie",0,5,"H"]],"bonus":["erst","irks","kier","kist","kite","kites","kits","kris","resit","rest","rets","risk","rite","rites","set","sike","sir","sire","site","skier","skit","skite","ster","stir","stirk","tier","tiers","ties","tire","tires","trek","treks","tres","trike","trikes"]},{"letters":"mterak","h":5,"w":8,"words":[["market",2,0,"H"],["maker",0,3,"V"],["team",0,0,"H"],["rate",0,5,"V"],["tear",4,0,"H"],["era",3,5,"H"],["mat",2,0,"V"]],"bonus":["arm","armet","art","ate","ear","eat","kame","kart","make","mare","mark","mart","mate","mater","meat","met","meta","rake","rat","ream","take","taker","tame","tamer","tare","tea","teak","term","tram","trek"]},{"letters":"enurht","h":6,"w":6,"words":[["hunter",3,0,"H"],["hunt",0,3,"V"],["then",2,0,"V"],["tune",1,2,"H"],["nut",5,0,"H"],["run",3,5,"V"],["net",3,2,"V"]],"bonus":["hent","her","hern","hurt","neut","rent","rhet","rune","runt","ruth","ten","tern","the","thru","true","tuner","turn"]},{"letters":"dtesak","h":5,"w":8,"words":[["steak",2,1,"H"],["asked",0,5,"V"],["dates",0,2,"V"],["tasked",4,0,"H"],["east",0,4,"H"],["task",0,7,"V"],["sad",0,0,"H"]],"bonus":["ask","ate","daks","date","desk","eat","eats","etas","keas","sake","sat","sate","sated","sea","seat","set","seta","skat","skate","skated","stake","staked","stead","tads","take","takes","tea","teak","teaks","teas","teds"]},{"letters":"tdnein","h":5,"w":8,"words":[["intend",2,0,"H"],["tined",0,4,"V"],["tide",4,2,"H"],["tied",1,0,"V"],["tend",0,4,"H"],["die",0,7,"V"],["net",0,2,"V"]],"bonus":["dent","dentin","diet","dine","dint","edit","end","indent","inn","nide","nine","ten","tie","tin","tine","tinned"]},{"letters":"sierde","h":5,"w":8,"words":[["desire",2,2,"H"],["rise",0,4,"V"],["seed",0,7,"V"],["rides",0,2,"V"],["see",3,0,"H"],["rids",0,0,"V"],["reds",0,4,"H"]],"bonus":["deer","die","dies","dire","dree","dries","eide","eider","eiders","ides","red","rede","reed","reside","rid","ride","seer","sere","side","sir","sire","sired"]},{"letters":"tecpar","h":7,"w":6,"words":[["carpet",1,0,"H"],["react",0,4,"V"],["trace",3,1,"H"],["part",0,1,"V"],["rat",3,2,"V"],["rate",5,0,"H"],["art",4,0,"V"]],"bonus":["ace","acpt","acre","act","apter","ate","cap","cape","caper","capt","car","care","caret","carp","cart","carte","cat","cate","cater","cert","crape","crate","crept","ear","eat","epact","era","pace","pacer","pact","pare","pate","pear","peart","peat","pert","pet","prat","prate","pret","race","rapt","rcpt","reap","recap","rect","rept","tace","tap","tape","taper","tare","tarp","tea","tear","trap"]},{"letters":"ewetrah","h":8,"w":7,"words":[["weather",2,0,"H"],["water",0,3,"V"],["heart",4,0,"H"],["earth",0,6,"V"],["where",0,1,"V"],["tree",4,4,"V"],["rate",6,1,"H"],["were",0,3,"H"],["eat",7,4,"H"]],"bonus":["aether","arete","art","ate","ear","eater","era","ether","ewer","hare","hart","hat","hate","hater","hear","heat","heater","her","here","hereat","hewer","rat","rath","rathe","raw","reheat","rete","rhea","rhet","tahr","tare","tea","tear","thar","thaw","the","thee","there","thew","three","threw","twee","war","ware","wart","wear","weer","wert","wet","wether","what","wheat","whee","whereat","whet","wrath","wreath","wreathe"]},{"letters":"etrsnei","h":7,"w":9,"words":[["entries",4,2,"H"],["steer",0,5,"V"],["enter",1,7,"V"],["trees",2,2,"V"],["enters",0,0,"H"],["entire",0,0,"V"],["tree",1,5,"H"],["seen",6,2,"H"],["tire",2,2,"H"]],"bonus":["erne","ernes","erst","ester","estrin","inert","insert","inset","inst","instr","inter","inters","intr","nest","net","nets","niter","nits","reest","rein","rent","rents","resent","reset","resin","resit","rest","rete","retie","rets","rinse","rise","risen","rite","rites","see","seer","seine","seiner","sene","sent","sente","sere","serin","serine","set","sin","sine","sinter","sir","sire","siren","sit","site","sneer","snit","stein","ster","stere","stern","stir","teen","teens","tees","ten","tens","tense","tenser","tern","terns","terse","tie","tier","tiers","ties","tin","tine","tines","tins","tires","treen","tres","tries","trine","trines"]},{"letters":"frtcoya","h":8,"w":7,"words":[["factory",1,0,"H"],["craft",1,2,"V"],["actor",5,0,"H"],["factor",3,1,"H"],["fort",0,4,"V"],["fact",4,0,"V"],["toy",7,0,"H"],["ray",5,4,"V"],["rat",3,6,"V"]],"bonus":["act","art","arty","car","cart","cat","coat","corf","crafty","cray","croft","cry","far","farcy","faro","fat","for","fora","foray","forty","frat","fray","ofay","orca","racy","raft","rota","taco","taro","tray","troy","try","tyro"]},{"letters":"esdlmap","h":8,"w":8,"words":[["pedals",5,1,"H"],["sampled",1,5,"V"],["sample",2,1,"V"],["palmed",0,3,"V"],["leads",2,3,"H"],["leaps",0,0,"H"],["medal",7,3,"H"],["palm",3,0,"H"],["sea",2,7,"V"]],"bonus":["ales","alms","alps","ample","amps","aped","apes","apse","dale","dales","dame","dames","damp","damps","dams","damsel","deal","deals","elms","lade","lades","lads","lame","lamed","lames","lamp","lamps","lams","lap","laps","lapse","lapsed","lase","lased","lead","leap","leas","mad","made","mads","male","males","map","maple","maples","maps","mdse","mead","meal","meals","meas","medals","meld","melds","mesa","pad","pads","pale","paled","pales","palms","pals","pase","peal","peals","peas","pedal","plasm","plea","plead","pleads","pleas","psalm","sad","sale","salep","same","seal","seam","sepal","slam","slap","sled","spade","spae","spam","sped"]},{"letters":"iekamst","h":6,"w":9,"words":[["mistake",4,0,"H"],["mates",1,6,"V"],["teams",1,0,"V"],["steak",1,4,"V"],["meats",0,2,"V"],["team",2,4,"H"],["sat",5,6,"H"],["sit",3,8,"V"],["tie",1,0,"H"]],"bonus":["aim","aims","amie","ask","ate","east","eat","eats","emit","emits","etas","item","items","kame","kami","keas","kismet","kist","kit","kite","kites","kits","make","makes","mask","mast","mat","mate","mats","meas","meat","mesa","met","meta","metis","mike","mikes","mist","mite","mites","sake","same","samite","sate","satem","sati","sea","seam","seat","semi","set","seta","sika","sike","sima","site","skat","skate","skim","skit","skite","smite","stake","steam","stem","take","takes","tame","tames","tamis","tams","task","tea","teak","teaks","teas","ties","time","times"]},{"letters":"aeecpsh","h":7,"w":9,"words":[["peaches",2,0,"H"],["escape",1,6,"V"],["speech",6,3,"H"],["space",0,2,"V"],["chase",4,4,"H"],["peach",2,0,"V"],["peace",0,8,"V"],["ease",0,0,"H"],["ace",4,0,"H"]],"bonus":["aces","ache","aches","apes","apse","cap","cape","capes","caps","case","cash","cease","chap","chape","chaps","cheap","cheep","cheeps","each","hasp","heap","heaps","pace","paces","pase","pash","peaces","peas","pecs","pees","phase","scape","sea","sech","see","seep","shape","she","sheep","spae","spec"]},{"letters":"etrlala","h":7,"w":8,"words":[["lateral",5,0,"H"],["later",2,3,"V"],["tear",3,5,"V"],["tall",3,0,"V"],["alter",3,3,"H"],["tale",0,6,"V"],["rat",1,5,"H"],["all",2,1,"H"],["era",0,1,"V"]],"bonus":["alae","alar","alate","alert","altar","area","areal","art","artel","ate","ear","earl","eat","late","leal","let","rale","rall","rata","ratal","rate","ratel","real","reata","tael","tala","taler","taller","tare","tea","teal","tell"]},{"letters":"siginht","h":7,"w":9,"words":[["insight",1,1,"H"],["night",0,4,"V"],["nights",1,2,"V"],["things",0,6,"V"],["hints",3,4,"H"],["sign",6,2,"H"],["hit",4,2,"H"],["sing",3,8,"V"],["sit",5,0,"H"]],"bonus":["gins","gist","gits","hing","hings","hins","hint","his","hist","hits","init","inst","inti","intis","nigh","nisi","nits","shin","shtg","sigh","sight","sin","sinh","siting","snit","sting","thin","thing","thins","this","tin","ting","tings","tins"]},{"letters":"tesdtua","h":7,"w":9,"words":[["statued",4,1,"H"],["stated",0,6,"V"],["statue",1,4,"V"],["dates",2,2,"V"],["taste",6,0,"H"],["used",0,5,"H"],["date",0,8,"V"],["sad",2,0,"H"],["tea",0,1,"V"]],"bonus":["adust","astute","ate","due","dues","duet","duets","dust","east","eat","eats","etas","sat","sate","sated","saute","sea","seat","set","seta","sett","stat","state","stead","stet","stud","sued","suet","tads","tasted","tats","taus","taut","teas","teat","teats","teds","test","testa","tuts","use"]},{"letters":"edcrahi","h":7,"w":8,"words":[["chaired",4,0,"H"],["chair",0,4,"V"],["raced",2,0,"V"],["acid",2,4,"H"],["rice",0,2,"H"],["reach",2,2,"V"],["ride",0,7,"V"],["era",4,5,"V"],["card",6,4,"H"]],"bonus":["ace","aced","ache","ached","achier","acre","acred","acrid","aid","aide","aider","air","aired","arced","arch","arched","arid","cade","cadi","cadre","cahier","caird","car","cardie","care","cared","cedar","cedi","ceria","chad","char","chard","chare","chide","chider","cider","cire","cred","cried","dace","dare","daric","dear","dice","dicer","die","dire","each","ear","hade","hair","haired","hard","hare","hared","head","hear","heard","heir","her","herd","herdic","hid","hide","hider","hied","hire","hired","ice","iced","idea","irade","race","raid","read","recd","red","rehi","rhea","riced","rich","rid"]},{"letters":"tepdoks","h":7,"w":9,"words":[["desktop",0,2,"H"],["spoke",0,4,"V"],["posed",0,8,"V"],["posted",4,0,"H"],["toped",2,0,"V"],["tops",2,3,"H"],["desk",6,0,"H"],["dot",4,5,"V"],["top",6,5,"H"]],"bonus":["depot","dept","despot","does","dope","dopes","dose","dost","dote","dotes","dots","epos","estop","kept","keto","odes","oped","opes","opted","opts","peso","pest","pesto","pet","pets","pods","poet","poets","poke","poked","pokes","pose","post","pot","pots","sept","set","skep","soke","sped","spot","step","stoke","stoked","stop","stope","teds","toe","toed","toes","toke","toked","tokes","tope","topes"]},{"letters":"vaeidrr","h":7,"w":9,"words":[["arrived",2,2,"H"],["driver",1,4,"V"],["river",0,6,"V"],["aired",2,2,"V"],["rider",6,0,"H"],["dive",2,8,"V"],["dear",3,0,"V"],["rid",0,6,"H"],["ear",4,0,"H"]],"bonus":["aid","aide","aider","air","arid","arrive","aver","avid","dare","darer","deriv","derv","deva","die","dire","direr","diva","diver","drear","drier","drive","era","idea","irade","raid","raider","rare","rared","rave","raved","raver","read","rear","red","ride","rive","rived","vair","varied","via","vide","vied","vier"]},{"letters":"tsimenr","h":7,"w":9,"words":[["minters",1,1,"H"],["merits",1,1,"V"],["times",4,0,"H"],["rents",1,6,"V"],["items",0,4,"V"],["mines",3,4,"H"],["site",3,8,"V"],["sent",6,1,"H"],["sit",5,6,"H"]],"bonus":["emir","emirs","emit","emits","erst","estrin","inert","insert","inset","inst","instr","inter","inters","intr","item","men","merit","met","metis","mien","miens","mine","miner","miners","minster","mint","minter","mints","mire","mires","miser","mist","mister","mite","miter","miters","mites","nest","net","nets","niter","nits","rein","remit","remits","rent","resin","resit","rest","rets","rim","rime","rimes","rims","rinse","rise","risen","rite","rites","semi","serin","set","sin","sine","sinter","sir","sire","siren","smite","smiter","snit","stein","stem","ster","stern","stir","ten","tens","term","terms","tern","terns","tie","tier","tiers","ties","time","timer","timers","tin","tine","tines","tins","tire","tires","tres","tries","trim","trims","trine","trines"]},{"letters":"sadrgep","h":7,"w":9,"words":[["grasped",1,2,"H"],["spread",0,6,"V"],["pagers",0,4,"V"],["grapes",1,2,"V"],["spare",3,0,"H"],["grasp",0,0,"V"],["dear",1,8,"V"],["sad",5,4,"H"],["era",3,6,"H"]],"bonus":["age","aged","ages","aped","apes","apse","ares","arsed","asper","dags","dare","dares","darg","dears","degas","drag","drags","drape","drapes","dreg","dregs","ear","ears","egad","egads","eras","ergs","gads","gap","gape","gaped","gapes","gaps","gars","gas","gasp","gasped","gasper","gear","gears","grad","grade","grades","grads","grape","grep","greps","pad","padre","padres","pads","page","paged","pager","pages","pard","pare","pared","pares","pars","parse","parsed","pase","peag","peags","pear","pears","peas","pegs","prase","pred","pres","presa","rads","rage","raged","rages","rags","raps","rasp","rasped","read","reap","reaps","red","reds","reps","resp","sage","sager","sard","sarge","sea","sear","spade","spader","spae","spar","spared","sparge","spear","sped","sprag"]},{"letters":"seuernd","h":6,"w":9,"words":[["ensured",4,2,"H"],["ensure",0,6,"V"],["nursed",0,2,"V"],["nurse",1,4,"V"],["needs",1,8,"V"],["send",0,0,"H"],["sure",0,0,"V"],["end",5,0,"H"],["see",2,6,"H"]],"bonus":["deer","dene","dens","dense","denser","dree","druse","due","dues","dune","dunes","duns","ends","endue","endues","endure","endures","ensue","ensued","erne","ernes","need","nerd","nerds","nuder","nudes","red","rede","reds","reed","rend","rends","resend","reuse","rude","rued","rues","run","rune","runes","runs","ruse","seed","seen","seer","sender","sene","sere","sneer","sued","suede","suer","sun","sunder","surd","under","urns","use","used","user"]},{"letters":"piendrt","h":7,"w":9,"words":[["printed",2,1,"H"],["tired",2,5,"V"],["pride",6,2,"H"],["tried",4,4,"H"],["trip",0,3,"V"],["tend",0,3,"H"],["pine",2,1,"V"],["end",4,0,"H"],["diet",2,7,"V"]],"bonus":["dent","dept","die","dine","diner","dint","dire","dirt","drip","edit","inept","inert","inter","intr","nerd","net","nide","niter","pen","pend","pent","peri","pert","pet","pie","pied","pier","piet","pin","pined","pint","pirn","pit","pred","pret","pried","print","red","rein","rend","rent","rept","retd","rid","ride","rident","rind","rip","ripe","ripen","rite","ten","tepid","tern","tide","tie","tied","tier","tin","tinder","tine","tined","tip","tire","trend","trine","tripe"]},{"letters":"esacufr","h":7,"w":9,"words":[["surface",4,0,"H"],["fears",2,4,"V"],["faces",6,0,"H"],["cause",0,6,"V"],["races",0,4,"H"],["cars",1,0,"V"],["sure",0,8,"V"],["fear",1,2,"V"],["ace",2,0,"H"]],"bonus":["aces","acre","acres","arcs","ares","cafe","cafes","car","care","cares","carse","case","caus","causer","cesar","crus","cruse","cues","cure","cures","curs","curse","ear","ears","ecru","ecus","era","eras","face","facer","facers","far","farce","farces","fare","fares","fauces","feuar","frae","furs","fuse","race","refs","rues","ruse","safe","safer","sauce","saucer","scar","scare","scarf","scurf","sea","sear","serf","sucre","suer","sura","surf","urea","use","user"]},{"letters":"afedhls","h":7,"w":9,"words":[["flashed",2,2,"H"],["heads",0,4,"V"],["deals",4,0,"H"],["shade",0,3,"H"],["fades",2,0,"V"],["flash",2,2,"V"],["head",6,2,"H"],["held",2,6,"V"],["deal",2,8,"V"]],"bonus":["ales","ashed","dahl","dahls","dahs","dale","dales","dash","deaf","fade","fads","false","fash","feal","feds","flea","fleas","fled","flesh","hade","hades","hale","haled","hales","half","heal","heals","lade","lades","lads","lase","lased","lash","lashed","lead","leads","leaf","leafs","leas","leash","sad","safe","sale","sea","seal","selah","self","shad","shale","she","sheaf","shed","shelf","sled"]},{"letters":"anihgsp","h":7,"w":9,"words":[["phasing",5,2,"H"],["shaping",0,7,"V"],["gains",1,5,"V"],["gaps",3,2,"V"],["sign",3,0,"H"],["pain",0,3,"V"],["naps",0,1,"H"],["sing",3,0,"V"],["gas",6,0,"H"]],"bonus":["anis","aphis","aping","apish","ashing","gain","gap","gash","gasp","gins","gnash","hags","hang","hangs","hasp","hing","hings","hins","hip","hips","his","insp","nags","nap","nigh","nipa","nipas","nips","pains","pan","pang","pangs","pans","pash","phis","pig","pigs","pin","ping","pings","pins","pish","psia","sain","sang","shag","shin","ship","sigh","sin","sinh","sip","snag","snap","snip","spahi","span","spang","spin"]},{"letters":"ldngesi","h":8,"w":7,"words":[["singled",7,0,"H"],["design",2,2,"V"],["single",5,1,"H"],["lends",3,1,"H"],["digs",0,5,"V"],["signed",0,0,"H"],["send",4,6,"V"],["sin",0,0,"V"],["dig",3,4,"V"]],"bonus":["deign","deigns","deil","deli","delis","dens","die","dies","dine","dines","ding","dinge","dinges","dingle","dingles","dings","dins","end","ends","geld","gelds","gelid","gels","gens","gild","gilds","gins","glen","glens","glide","glides","ides","idle","idles","ingle","isle","leg","legs","leis","lend","lenis","lens","lid","lids","lie","lied","lien","liens","lies","line","lined","lines","ling","lings","nide","side","sidle","sign","sild","sine","sing","singe","singed","sled","slid","slide","sling","snide"]},{"letters":"ntgirea","h":7,"w":9,"words":[["tearing",2,0,"H"],["eating",0,0,"V"],["earing",0,0,"H"],["great",2,6,"V"],["agent",4,4,"H"],["anger",2,2,"V"],["grant",0,8,"V"],["rate",6,4,"H"],["air",4,4,"V"]],"bonus":["age","aigret","airt","ante","anti","antre","argent","art","ate","ear","earn","eat","engr","era","etna","gain","gainer","gait","gaiter","garnet","gate","gater","gean","gear","genit","gent","get","giant","girt","gite","gnat","grain","gran","granite","grate","gratin","grin","grit","inert","ingate","ingrate","inter","intr","irate","near","neat","net","niter","rage","ragi","rain","rang","range","rant","rat","rating","regain","reign","rein","rent","retain","retina","riant","ring","rite","tag","tain","tang","tangier","tare","targe","taring","tarn","tea","tear","ten","tenia","tern","tie","tier","tiger","tin","tine","tinea","ting","tinge","tire","train","triage","trig","trine"]},{"letters":"elrevas","h":8,"w":8,"words":[["leavers",6,1,"H"],["reveals",1,1,"V"],["leaves",2,0,"H"],["several",4,0,"H"],["see",0,4,"V"],["sea",2,5,"V"],["era",4,3,"V"],["sale",0,4,"H"],["else",0,7,"V"]],"bonus":["alee","ales","ares","aver","avers","averse","ear","earl","earls","ears","ease","easel","eave","eaves","eels","elev","elver","elvers","elves","eras","erase","ever","eves","lares","lase","laser","lave","laver","lavers","laves","lavs","leas","lease","leaser","leave","leaver","leer","leers","lees","leva","lever","levers","rale","rales","rave","ravel","ravels","raves","real","reals","reave","reaves","reel","reels","resale","reseal","reveal","revel","revels","revs","salve","salver","save","saver","seal","sealer","sear","seel","seer","sere","serval","serve","sever","slave","slaver","sleave","vale","vales","valse","vars","vase","veal","veer","veers","vela","velar","velars","versa","verse"]},{"letters":"erngits","h":8,"w":7,"words":[["resting",0,0,"H"],["singer",0,2,"V"],["string",5,0,"H"],["tigers",3,0,"H"],["rents",3,4,"V"],["rise",7,2,"H"],["rest",0,0,"V"],["sin",5,0,"V"],["get",0,6,"V"]],"bonus":["engr","ergs","erst","estrin","genit","gens","gent","gents","gest","gets","gins","girt","girts","gist","gite","gites","gits","grin","grins","grist","grit","grits","inert","ingest","insert","inset","inst","instr","inter","inters","intr","nest","net","nets","niter","nits","reign","reigns","rein","rent","resign","resin","resit","rets","rigs","ring","rings","rinse","risen","rite","rites","sent","serin","set","sign","signer","signet","sine","sing","singe","sinter","sir","sire","siren","sit","site","snit","stein","ster","stern","stge","sting","stinger","stir","ten","tens","tern","terns","tie","tier","tiers","ties","tiger","tin","tine","tines","ting","tinge","tinges","tings","tins","tire","tires","tres","tries","trig","trine","trines"]},{"letters":"eahsrnd","h":7,"w":9,"words":[["hardens",2,2,"H"],["heads",1,6,"V"],["shared",1,2,"V"],["earns",0,4,"V"],["shade",2,8,"V"],["shed",5,0,"H"],["nears",1,0,"V"],["her",0,3,"H"],["sad",5,6,"H"]],"bonus":["and","ares","arsed","ashed","ashen","dahs","dare","dares","darn","darns","dash","dasher","dean","dear","dears","denar","dens","ear","earn","ears","end","ends","era","eras","ersh","hade","hades","hand","hands","hard","harden","hards","hare","hared","hares","head","hear","heard","hears","hens","herd","herds","hern","hers","nard","nards","nares","near","nerd","nerds","rads","rand","rash","read","red","redan","reds","rend","rends","rhea","rheas","sand","sander","sane","saner","sard","sea","sear","sedan","send","shad","shard","share","she","shear","shend","sher","shred","snare","snared"]},{"letters":"awdhect","h":8,"w":7,"words":[["watched",1,0,"H"],["watch",0,1,"V"],["hated",4,1,"H"],["death",3,4,"V"],["what",7,3,"H"],["ate",4,2,"V"],["act",5,6,"V"],["wet",0,5,"V"],["ace",6,0,"H"]],"bonus":["aced","ache","ached","acted","awed","cade","cadet","cat","cate","cawed","chad","chat","chaw","chawed","cheat","chew","dace","date","detach","each","eat","echt","etch","hade","hat","hate","hawed","head","heat","tace","tach","tache","tea","teach","tech","thaw","thawed","the","theca","thew","wade","wed","wheat","whet"]},{"letters":"atnessf","h":7,"w":9,"words":[["fatness",4,2,"H"],["feast",1,8,"V"],["feasts",0,4,"V"],["asset",1,6,"V"],["fans",2,3,"H"],["fat",4,2,"V"],["sat",6,0,"H"],["fats",3,0,"V"],["safe",0,2,"H"]],"bonus":["ante","antes","ants","assent","assn","asst","ate","east","eat","eats","efts","etas","etna","etnas","fan","fane","fast","fasten","fastens","fasts","fate","fates","feat","feats","fens","fess","fest","fests","feta","nates","neat","ness","nest","nests","net","nets","safes","safest","sane","sanest","sans","sate","sates","sea","seas","seat","seats","sens","sent","set","seta","sets","stane","tans","tass","tasse","tea","teas","ten","tens"]},{"letters":"esawreh","h":7,"w":9,"words":[["whereas",6,1,"H"],["wheres",1,7,"V"],["share",4,4,"H"],["hears",0,4,"V"],["wash",0,1,"H"],["where",0,1,"V"],["she",2,6,"H"],["see",2,0,"H"],["sew",4,0,"H"]],"bonus":["ares","awes","ear","ears","ease","era","eras","erase","ersh","ewer","ewers","ewes","haeres","hare","hares","haws","hawse","hawser","hear","hearse","her","here","heres","hers","hewer","hewers","hews","rash","raw","resew","rewash","rhea","rheas","saw","sawer","sea","sear","seer","sere","sewer","shaw","shear","sheer","sher","shew","shrew","swear","war","ware","wares","wars","was","washer","wear","wears","weer","wees","were","wersh","whee"]},{"letters":"sruerag","h":7,"w":9,"words":[["arguers",4,0,"H"],["argues",0,4,"V"],["sugar",0,1,"H"],["rares",2,1,"V"],["gears",2,4,"H"],["usage",1,8,"V"],["user",6,0,"H"],["sea",4,6,"V"],["era",2,0,"H"]],"bonus":["age","ages","ague","ares","argue","arguer","auger","augers","ear","ears","eras","ergs","errs","gars","gas","gaur","gaurs","gear","grue","grues","guar","guars","rage","rages","rags","rare","rear","rears","rues","rug","rugs","ruse","sage","sager","sarge","sauger","sear","suer","sura","sure","surer","surg","surge","surra","urea","urge","urger","urges","use"]},{"letters":"ntrdoef","h":8,"w":7,"words":[["fronted",5,0,"H"],["often",3,4,"V"],["toned",7,2,"H"],["fort",4,2,"V"],["toed",3,3,"H"],["rent",0,3,"V"],["trend",0,2,"H"],["for",5,0,"V"],["note",0,5,"V"]],"bonus":["deft","dent","doer","done","dot","dote","doter","drone","end","fend","fern","fetor","fond","fonder","font","ford","fore","forte","fret","froe","frond","front","nerd","net","nod","node","nor","not","noted","one","ordn","red","redo","reft","rend","retd","rod","rode","rodent","ronde","rote","ten","tend","tenor","terf","tern","toe","ton","tone","toner","tore","torn","trod","tron"]},{"letters":"ahretpy","h":8,"w":7,"words":[["therapy",5,0,"H"],["heart",1,0,"V"],["part",4,4,"V"],["party",7,1,"H"],["hate",2,2,"V"],["heat",2,2,"H"],["tea",0,4,"V"],["pay",3,6,"V"],["ate",0,3,"H"]],"bonus":["aery","apery","apter","art","arty","ear","earth","earthy","eat","era","eyra","hare","harp","harpy","hart","hat","hater","heap","hear","hearty","her","herp","hype","hyper","pare","pate","path","payer","payt","pear","peart","peat","peaty","pert","pet","phat","prat","prate","pray","pret","prey","pyre","rapt","rat","rate","rath","rathe","ray","reap","repay","rept","rhea","rhet","tahr","tap","tape","taper","tare","tarp","tear","teary","tephra","thar","the","therap","they","trap","tray","trey","try","type","yare","yeah","year","yet"]},{"letters":"crntela","h":7,"w":8,"words":[["central",6,1,"H"],["alter",2,5,"V"],["earn",3,3,"V"],["real",3,2,"H"],["near",0,2,"V"],["clear",1,0,"H"],["crane",1,0,"V"],["act",2,5,"H"],["rate",0,7,"V"]],"bonus":["ace","acne","acre","alert","ante","antler","antre","art","artel","ate","can","cane","caner","cant","canter","cantle","car","care","caret","carl","carnet","cart","carte","cartel","cat","cate","cater","celt","cent","cental","centra","cert","clan","claret","clean","cleat","crate","ear","earl","eat","eclat","elan","enact","encl","era","etna","lace","lacer","lance","lancer","lancet","lane","late","later","lean","learn","lect","lent","let","nacre","narc","natl","neat","nectar","neral","net","race","rale","rance","rant","rat","ratel","react","recant","rect","rectal","renal","rent","rental","tace","tael","talc","tale","taler","tare","tarn","tea","teal","tear","ten","tern","trace","trance"]},{"letters":"daiisle","h":7,"w":9,"words":[["dailies",2,0,"H"],["ideals",0,5,"V"],["ladies",1,1,"V"],["ideal",4,1,"H"],["aside",6,0,"H"],["dials",0,4,"H"],["sail",0,8,"V"],["sale",5,5,"H"],["lie",2,3,"V"]],"bonus":["aid","aide","aides","aids","ailed","ails","aisle","ales","dais","dale","dales","deal","deals","deil","deli","delis","dial","die","dies","idea","ideas","ides","idle","idles","ilea","ilia","isle","lade","lades","lads","laid","lase","lased","lead","leads","leas","leis","liaise","liaised","lid","lids","lied","lies","sad","said","sailed","sea","seal","side","sidle","sild","sled","slid","slide"]},{"letters":"liptoed","h":7,"w":8,"words":[["piloted",4,0,"H"],["oiled",1,5,"V"],["diet",3,1,"V"],["polite",2,2,"H"],["tile",6,1,"H"],["toed",0,7,"V"],["tip",0,2,"V"],["pit",0,0,"H"],["pot",0,0,"V"]],"bonus":["deil","deli","depot","dept","die","dipl","dipole","doit","dole","dolt","dope","dot","dote","edit","idle","idol","let","lid","lido","lie","lied","lip","lite","lode","lope","loped","lot","loti","oil","old","oldie","olid","oped","opted","pelt","pet","pie","pied","piet","pile","piled","pilot","plied","plod","plot","podite","poet","pole","poled","polit","tepid","tide","tie","tied","tilde","tiled","toe","toil","toile","toiled","told","tole","top","tope","toped","topi"]},{"letters":"treesid","h":7,"w":9,"words":[["dieters",2,2,"H"],["desert",1,4,"V"],["desire",1,6,"V"],["steer",2,8,"V"],["tides",0,2,"V"],["diet",6,1,"H"],["set",0,0,"H"],["site",0,0,"V"],["see",4,2,"H"]],"bonus":["deer","deist","deter","deters","die","dies","dieter","diets","dire","direst","dirt","dist","distr","dits","dree","dries","driest","edit","edits","eide","eider","eiders","erst","ester","ides","red","rede","reds","reed","reedit","reest","reset","reside","resit","rest","rested","retd","rete","retie","rets","rid","ride","rides","rids","rise","rite","rites","seed","seer","sere","side","sir","sire","sired","sit","sited","steed","ster","stere","stir","stride","teds","teed","tees","terse","tide","tie","tied","tier","tiered","tiers","ties","tire","tired","tires","tree","treed","trees","tres","tried","tries"]},{"letters":"goewrdn","h":8,"w":7,"words":[["wronged",2,0,"H"],["owner",0,3,"V"],["wrong",0,1,"H"],["owned",1,0,"V"],["grown",4,2,"H"],["owed",4,4,"V"],["rowed",7,0,"H"],["nor",4,6,"V"],["grew",4,2,"V"]],"bonus":["doer","dog","doge","done","dong","dower","down","downer","dreg","drew","drone","drown","end","endow","engr","enow","ergo","genro","geod","god","goer","gone","goner","gore","gored","gown","gowned","grow","nerd","new","nod","node","now","ogre","one","ordn","owe","own","red","redo","rend","rod","rode","ronde","row","wed","wend","wodge","won","wonder","word","wore","worn","wren"]},{"letters":"ttdsnue","h":6,"w":9,"words":[["student",3,2,"H"],["tents",0,8,"V"],["nest",0,3,"V"],["tent",2,6,"V"],["tune",1,0,"H"],["tunes",1,0,"V"],["nuts",0,3,"H"],["send",5,0,"H"],["sun",3,2,"V"]],"bonus":["dens","dent","dents","due","dues","duet","duets","dune","dunes","duns","dunt","dust","end","ends","net","nets","neut","nudes","nudest","nut","nutted","sent","set","sett","stent","stet","stud","stun","stunt","stunted","sued","suet","teds","ten","tend","tends","tens","test","tuned","tuns","tuts","unset","use","used"]},{"letters":"emfrars","h":7,"w":9,"words":[["framers",1,1,"H"],["farmers",0,3,"V"],["frames",1,1,"V"],["frame",0,6,"V"],["farms",3,0,"H"],["ear",5,1,"H"],["fear",4,5,"H"],["safe",6,3,"H"],["arms",3,8,"V"]],"bonus":["ares","arm","ears","emfs","era","eras","errs","fame","far","fare","farer","fares","farm","farmer","fears","frae","framer","mare","mares","mars","maser","meas","mesa","mfrs","rams","rare","rares","ream","reams","rear","rearm","rears","refs","safer","same","sea","seam","sear","serf","smear"]},{"letters":"breihdt","h":7,"w":9,"words":[["birthed",5,0,"H"],["tribe",2,0,"V"],["third",1,6,"V"],["birth",1,3,"H"],["bite",3,3,"V"],["tide",3,5,"H"],["debt",2,8,"V"],["rid",0,4,"V"],["tie",2,0,"H"]],"bonus":["bed","berth","bet","beth","bide","bidet","bier","bird","bit","biter","bred","brei","bride","brie","brit","debit","die","diet","dire","dirt","dither","edit","heir","her","herb","herd","hid","hide","hider","hied","hire","hired","hit","rebid","red","rehi","retd","rhet","rib","ride","rite","the","their","tied","tier","tire","tired","tried"]},{"letters":"haecsmt","h":7,"w":9,"words":[["matches",3,1,"H"],["shame",2,5,"V"],["chase",0,7,"V"],["teams",6,4,"H"],["heats",0,3,"V"],["cash",0,0,"H"],["mate",3,1,"V"],["act",0,6,"H"],["ate",5,0,"H"]],"bonus":["ace","aces","ache","aches","acme","acmes","acts","ahem","came","cams","case","cast","caste","cat","cate","cats","cesta","cham","chasm","chaste","chat","chats","cheat","cheats","chem","chest","each","east","eat","eats","echt","etas","etch","hame","hames","hams","hast","haste","hat","hate","hates","hats","heat","hems","hest","mace","maces","mach","macs","masc","mash","mast","mat","match","mates","math","mats","meas","meat","meats","mech","mesa","mesh","met","meta","meths","sachem","sachet","same","sat","sate","satem","scam","scat","scathe","schema","sea","seam","seat","sech","sect","set","seta","sham","she","steam","stem","tace","tach","tache","taches","tame","tames","tams","tea","teach","team","teas","tech","techs","the","theca","them"]},{"letters":"cthidpe","h":6,"w":9,"words":[["pitched",1,1,"H"],["depth",0,6,"V"],["hide",0,2,"V"],["pitch",3,4,"H"],["the",3,0,"H"],["tie",3,0,"V"],["chip",2,8,"V"],["pet",3,4,"V"],["hit",5,2,"H"]],"bonus":["cedi","chide","chit","cite","cited","depict","dept","dice","dict","die","diet","ditch","echt","edict","edit","epic","etch","ethic","hid","hied","hip","ice","iced","itch","itched","pice","pie","pied","piet","pit","pith","tech","tepid","tide","tied","tip"]},{"letters":"iaewres","h":7,"w":8,"words":[["wearies",4,1,"H"],["raise",0,2,"V"],["wires",0,7,"V"],["arise",2,0,"H"],["wears",1,4,"V"],["wire",0,0,"H"],["wear",0,0,"V"],["war",4,1,"V"],["raw",0,5,"H"]],"bonus":["aerie","aeries","air","airs","ares","awes","ear","ears","ease","easier","era","eras","erase","ewer","ewers","ewes","resew","rise","sari","saw","sawer","sea","sear","see","seer","serai","sere","sew","sewer","sir","sire","swear","ware","wares","wars","was","weer","wees","weir","weirs","were","wise","wiser"]},{"letters":"aeretrg","h":6,"w":9,"words":[["greater",1,0,"H"],["great",0,1,"V"],["eager",0,3,"V"],["gear",0,5,"V"],["rate",3,5,"H"],["agree",0,8,"V"],["rare",3,0,"H"],["art",3,6,"V"],["ate",5,5,"H"]],"bonus":["age","agee","arete","eagre","ear","eat","eater","egret","era","garret","garter","gate","gater","get","grate","grater","gree","greet","rage","rat","rater","rear","regear","regrate","regret","rete","tag","tare","targe","tea","tear","tearer","terr","terra","tree"]},{"letters":"elsdtca","h":7,"w":9,"words":[["castled",6,0,"H"],["scaled",1,6,"V"],["dates",2,2,"V"],["leads",3,4,"H"],["lasted",1,8,"V"],["scale",0,4,"V"],["least",0,1,"H"],["eat",4,0,"H"],["date",1,0,"V"]],"bonus":["ace","aced","aces","act","acted","acts","ales","alts","ate","cade","cadet","cadets","cads","case","cased","cast","caste","castle","cat","cate","cats","celt","cesta","clad","clade","cleat","cleats","dace","daces","dale","dales","deal","deals","dealt","decal","decals","decl","delta","deltas","desalt","desc","east","eats","eclat","etas","lace","laced","laces","lade","lades","lads","lase","lased","last","late","lated","lats","lead","leas","lect","lest","let","lets","sad","sale","salt","salted","sat","sate","sated","scad","scald","scat","sea","seal","seat","sect","set","seta","slat","slate","slated","sled","stale","staled","stead","steal","stela","tace","tads","tael","talc","tale","tales","tea","teal","teals","teas","teds","tels","tesla"]},{"letters":"uedtinm","h":7,"w":9,"words":[["minuted",0,2,"H"],["minute",0,2,"V"],["unite",3,2,"H"],["tined",0,6,"V"],["timed",2,4,"V"],["due",4,6,"H"],["met",4,0,"H"],["tin",2,0,"H"],["time",2,0,"V"]],"bonus":["demit","denim","dent","die","diet","dime","dine","dint","duet","dune","dunite","dunt","edit","emit","end","etui","idem","item","men","mend","menu","mien","mind","mine","mined","mint","minted","minuet","mite","mud","mute","muted","net","neut","nide","nut","tedium","ten","tend","tide","tie","tied","tine","tumid","tune","tuned","unit","united","unmet","untie"]},{"letters":"rpsehda","h":8,"w":7,"words":[["sharped",0,0,"H"],["phrase",0,4,"V"],["phased",4,1,"H"],["shared",2,1,"H"],["head",4,2,"V"],["hear",6,0,"H"],["dear",4,6,"V"],["she",5,0,"V"],["ear",7,4,"H"]],"bonus":["aped","apes","apse","ares","arsed","ashed","asper","dahs","dare","dares","dash","dasher","dears","drape","drapes","ears","era","eras","ersh","hade","hades","hard","hards","hare","hared","hares","harp","harped","harps","hasp","heads","heap","heaps","heard","hears","her","herd","herds","herp","hers","pad","padre","padres","pads","pard","pare","pared","pares","pars","parse","parsed","pase","pash","pear","pears","peas","phase","phrased","prase","pred","pres","presa","rads","raps","rash","rasp","rasped","read","reap","reaps","red","reds","reps","resp","rhea","rheas","sad","sard","sea","sear","seraph","shad","shade","shape","shaped","shaper","shard","share","sharp","shear","shed","sher","shred","spade","spader","spae","spar","spare","spared","spear","sped","spread"]},{"letters":"trogisn","h":7,"w":9,"words":[["sorting",2,2,"H"],["storing",0,3,"V"],["strong",0,3,"H"],["string",4,0,"H"],["irons",0,0,"V"],["song",6,0,"H"],["not",2,7,"V"],["got",4,5,"V"],["ton",6,5,"H"]],"bonus":["gins","giro","giros","girt","girts","gist","gits","grin","grins","grison","grist","grit","grits","groin","groins","grot","grots","ingot","ingots","inorg","inst","instr","into","intr","intro","intros","ions","iron","nitro","nits","nogs","nor","orig","ornis","orts","rigs","ring","rings","riot","riots","rosin","rots","sign","signor","sin","sing","sir","sit","snit","snog","snort","snot","son","sori","sorn","sort","sting","stingo","stir","stor","tigon","tigons","tin","ting","tings","tins","togs","tong","tongs","tons","tori","torn","tors","trig","trigon","trigons","trio","trios","tron","trons"]},{"letters":"sjaleir","h":8,"w":7,"words":[["jailers",4,0,"H"],["arise",2,2,"V"],["raise",0,4,"V"],["jails",0,6,"V"],["reals",6,1,"H"],["laser",0,0,"H"],["era",2,0,"H"],["lie",0,0,"V"],["rise",4,5,"V"]],"bonus":["ails","air","airs","aisle","ales","ares","ariel","aril","arils","ear","earl","earls","ears","eras","ilea","isle","jail","jailer","jarl","jars","lair","lairs","lares","lari","lase","leas","leis","liar","liars","lies","lira","lire","rail","rails","rajes","rale","rales","real","rial","rials","riel","riels","rile","riles","sail","sailer","sale","sari","sea","seal","sear","serai","serial","sir","sire","slier"]},{"letters":"einatfd","h":7,"w":8,"words":[["fainted",3,1,"H"],["fined",1,4,"V"],["fine",3,1,"V"],["fate",0,6,"V"],["tend",6,0,"H"],["diet",3,7,"V"],["date",5,4,"H"],["idea",0,2,"V"],["fit",0,1,"H"]],"bonus":["adit","aid","aide","and","ante","anted","anti","ate","daft","deaf","dean","defiant","deft","dent","detain","die","dine","dint","eat","edit","end","etna","fade","fain","faint","fan","fane","fat","fated","feat","feint","fend","feta","fetid","fiat","fiend","find","indef","naif","neat","net","nide","tain","tea","ten","tenia","tide","tie","tied","tin","tine","tinea","tined"]},{"letters":"aprdgeu","h":7,"w":9,"words":[["upgrade",2,2,"H"],["urged",2,2,"V"],["guard",2,4,"V"],["grade",4,2,"H"],["paged",1,6,"V"],["dear",1,8,"V"],["ear",3,0,"H"],["era",3,0,"V"],["gap",0,3,"V"]],"bonus":["age","aged","ague","aped","argue","argued","auger","dare","darg","drag","drape","dreg","drug","drupe","due","dupe","duper","egad","gape","gaped","gaud","gaur","gear","grad","grape","grep","grue","guar","pad","padre","page","pager","pard","pare","pared","pareu","peag","pear","perdu","prau","pred","prude","pure","purge","purged","rage","raged","read","reap","red","rude","rued","rug","urea","urge"]},{"letters":"deriaew","h":7,"w":8,"words":[["wearied",2,1,"H"],["wide",0,7,"V"],["aired",2,3,"V"],["were",5,0,"H"],["wired",2,1,"V"],["idea",2,5,"V"],["drew",0,4,"H"],["die",0,2,"V"],["wed",0,0,"H"]],"bonus":["aerie","aid","aide","aider","air","arid","awed","dare","dear","deer","dewier","dire","draw","drawee","dree","ear","eared","eide","eider","era","ewer","irade","raid","raw","read","red","rede","reed","rewed","rid","ride","wade","wader","wadi","war","ward","ware","wear","weed","weer","weir","weird","wider","wire"]},{"letters":"grtnida","h":7,"w":9,"words":[["trading",2,0,"H"],["rating",1,2,"V"],["grand",2,6,"V"],["dating",0,0,"V"],["grind",0,4,"V"],["giant",0,4,"H"],["drain",4,4,"H"],["train",0,8,"V"],["and",6,4,"H"]],"bonus":["adit","aid","air","airt","anti","arid","art","dang","darg","daring","darn","dart","darting","diag","dig","dinar","ding","dint","dirt","drag","drat","gain","gait","gird","girt","gnat","grad","gradin","grain","gran","grant","gratin","grid","grin","grit","intr","nadir","nard","ragi","raid","rain","rand","rang","rant","rat","riant","rid","rind","ring","tag","tain","tang","taring","tarn","tin","ting","trad","triad","trig"]},{"letters":"deroats","h":7,"w":9,"words":[["roasted",2,0,"H"],["stared",1,4,"V"],["stored",0,1,"V"],["trades",4,3,"H"],["dates",0,8,"V"],["read",0,5,"H"],["rods",6,2,"H"],["sad",0,1,"H"],["ear",4,7,"V"]],"bonus":["adore","adores","aero","ares","arose","arsed","art","arts","aster","astr","ate","dare","dares","dart","darts","date","dater","daters","dato","dear","dears","doer","doers","does","dora","dose","dost","dot","dote","doter","doters","dotes","dots","drat","ears","east","eat","eats","era","eras","erst","etas","oared","oars","oast","oats","odea","odes","orate","orated","orates","oread","ores","orts","rads","rat","rate","rated","rates","rats","red","redo","reds","resat","rest","retd","rets","road","roads","roast","rod","rode","roes","rose","rota","rotas","rote","rots","sard","sat","sate","sated","sea","sear","seat","set","seta","soar","soared","soda","sora","sore","sort","sorta","sorted","star","stare","stead","ster","stoa","stor","store","strode","tads","tare","tared","tares","taro","taros","tars","taser","tea","tear","tears","teas","teds","toad","toads","toe","toea","toeas","toed","toes","tore","tors","torse","trad","trade","tread","treads","treas","tres","trod"]}],"bonus":[{"letters":"agenerd","h":9,"w":10,"words":[["angered",3,2,"H"],["garden",3,4,"V"],["danger",2,2,"V"],["agreed",7,0,"H"],["geared",0,6,"V"],["ranged",0,3,"H"],["eager",5,0,"H"],["grade",1,0,"V"],["red",2,0,"H"],["edge",2,8,"V"],["deer",5,6,"H"],["era",5,7,"V"]],"bonus":["age","aged","agee","agree","and","anger","dang","dare","darg","darn","dean","dear","denar","dene","derange","drag","dree","dreg","eagre","ear","eared","earn","earned","edger","egad","end","endear","engr","enrage","enraged","erne","gander","gean","gear","geed","gender","gene","genera","genre","grad","gran","grand","grandee","gree","greed","green","grenade","nard","near","neared","need","nerd","rage","raged","rand","ranee","rang","range","read","redan","rede","reed","rend"]},{"letters":"licpeod","h":9,"w":9,"words":[["police",3,1,"H"],["policed",0,4,"V"],["copied",5,0,"H"],["oiled",0,6,"V"],["pile",5,2,"V"],["cope",5,0,"V"],["clip",0,1,"H"],["pole",7,0,"H"],["die",4,6,"H"],["oil",0,6,"H"],["lip",2,6,"H"],["pie",2,8,"V"]],"bonus":["cedi","ceil","clod","clop","code","coed","coil","coiled","cold","cole","coli","coped","decl","deco","deil","deli","dice","dipl","dipole","docile","dolce","dole","dope","ecol","epic","ice","iced","idle","idol","lice","lid","lido","lie","lied","loci","lode","lope","loped","old","oldie","oleic","olid","oped","pice","pied","piled","plied","ploce","plod","poled"]},{"letters":"eairtpv","h":7,"w":10,"words":[["private",2,3,"H"],["tape",0,3,"V"],["pair",1,7,"V"],["pie",0,9,"V"],["tie",1,5,"V"],["era",4,6,"H"],["tire",3,0,"H"],["via",1,1,"H"],["trap",3,0,"V"],["rip",3,2,"V"],["pet",5,2,"H"],["air",4,8,"V"]],"bonus":["airt","apter","art","ate","atrip","aver","avert","ear","eat","irate","pare","part","parve","pate","pave","pear","peart","peat","peri","pert","perv","pier","piet","pieta","pirate","pit","pita","prat","prate","pret","priv","privet","rapt","rat","rate","rave","reap","rept","ripe","rite","rive","rivet","tap","taper","tapir","tare","tarp","tea","tear","tier","tip","trave","trip","tripe","vair","vape","vert","vet","vier","viper","vita","vitae"]},{"letters":"iatnrep","h":10,"w":8,"words":[["parent",0,2,"H"],["painter",0,2,"V"],["print",6,1,"H"],["tire",6,5,"V"],["paint",2,0,"H"],["trap",8,4,"H"],["train",2,4,"V"],["pine",2,0,"V"],["near",0,6,"V"],["tear",4,2,"H"],["pair",6,1,"V"],["tape",6,7,"V"]],"bonus":["air","airt","ante","anti","antre","apter","arpent","art","ate","atrip","ear","earn","eat","entrap","era","etna","inapt","inept","inert","inter","intr","irate","nap","nape","neap","neat","net","nipa","niter","pain","pan","pane","pant","pantie","pare","part","pate","paten","patin","patine","pean","pear","peart","peat","pen","pent","peri","pert","pertain","pet","pie","pier","piet","pieta","pin","pineta","pint","pinta","pirate","pirn","pit","pita","prat","prate","pret","rain","rant","rapine","rapt","rat","rate","reap","rein","rent","repaint","rept","retain","retina","riant","rip","ripe","ripen","rite","tain","tap","taper","tapir","tare","tarn","tarp","tea","ten","tenia","tern","tie","tier","tin","tine","tinea","tip","trepan","trine","trip","tripe"]},{"letters":"giarpsn","h":9,"w":10,"words":[["sparing",4,1,"H"],["spring",1,5,"V"],["grains",2,3,"V"],["grain",6,5,"H"],["pains",0,1,"V"],["rains",3,9,"V"],["pins",0,1,"H"],["grasp",4,7,"V"],["rain",6,0,"H"],["pair",2,5,"H"],["sing",2,0,"H"],["rip",6,0,"V"]],"bonus":["air","airs","anis","aping","arsing","gain","gains","gap","gaps","gars","gas","gasp","gins","gran","grans","grin","grins","grip","grips","insp","nags","nap","naps","naris","nipa","nipas","nips","pain","pairs","pan","pang","pangs","pans","paring","parings","pars","parsing","pig","pigs","pin","ping","pings","pirn","prang","prangs","prig","prigs","psia","ragi","ragis","rags","rang","raping","raps","rasp","rasping","rigs","ring","rings","rips","sain","sang","sari","sign","sin","sip","sir","snag","snap","snip","span","spang","spar","spin","sprag","sprain","sprang","sprig"]},{"letters":"bcnieta","h":6,"w":9,"words":[["cabinet",1,2,"H"],["cabin",1,2,"V"],["neat",0,7,"V"],["bite",0,5,"V"],["cab",3,0,"H"],["ten",5,0,"H"],["cat",3,0,"V"],["beat",3,4,"H"],["bet",3,4,"V"],["ice",4,2,"H"],["ate",3,6,"V"],["tie",5,4,"H"]],"bonus":["abet","ace","acne","act","actin","ante","anti","antic","bact","bait","ban","banc","bane","bani","bant","bat","bate","bean","bent","beta","bice","binate","bine","bit","cain","can","cane","cant","cate","ceiba","cent","cine","cite","eat","enact","etna","net","nice","tab","tace","tain","tea","tenia","tin","tine","tinea"]},{"letters":"eincadf","h":8,"w":10,"words":[["fancied",4,2,"H"],["dance",2,4,"V"],["acid",1,8,"V"],["face",4,2,"V"],["nice",2,6,"H"],["iced",4,6,"V"],["caned",2,0,"H"],["faced",0,0,"V"],["find",0,0,"H"],["end",6,6,"H"],["ace",7,0,"H"],["die",0,3,"V"]],"bonus":["aced","acne","acned","aid","aide","and","cade","cadi","cafe","cain","can","cane","cedi","cine","dace","deaf","dean","decaf","decani","dice","dine","fade","fain","fan","fane","fend","fiance","fiend","fine","fined","ice","idea","inced","indef","naif","nide"]},{"letters":"enultra","h":10,"w":9,"words":[["neutral",5,1,"H"],["nature",4,6,"V"],["later",2,2,"V"],["learn",3,0,"H"],["alter",9,3,"H"],["real",0,0,"V"],["rule",7,5,"H"],["lean",0,4,"V"],["lane",0,4,"H"],["alert",2,4,"H"],["ten",2,8,"V"],["run",0,0,"H"]],"bonus":["ante","antler","antre","art","artel","ate","aunt","ear","earl","earn","eat","elan","era","etna","late","lent","let","lunar","lunate","lune","lure","lute","natl","naut","near","neat","neral","net","neural","neut","nut","rale","rant","rat","rate","ratel","renal","rent","rental","rune","runlet","runt","tael","tale","taler","tare","tarn","tea","teal","tear","tern","true","tuna","tune","tuner","turn","ulna","ulnae","ulnar","ultra","unreal","urea"]},{"letters":"egsutre","h":7,"w":10,"words":[["gesture",2,3,"H"],["urges",0,3,"V"],["trues",0,7,"V"],["greets",0,9,"V"],["tree",3,0,"H"],["greet",2,1,"V"],["steer",2,5,"V"],["trees",6,4,"H"],["rugs",0,2,"H"],["get",5,0,"H"],["see",4,3,"H"],["set",4,7,"H"]],"bonus":["egest","egret","egrets","ergs","erst","ester","gees","geest","gest","gets","gree","grue","grues","guest","gust","guts","reest","reset","rest","rete","rets","retuse","reuse","rues","rug","ruse","rust","ruts","seer","segue","sere","serge","ster","stere","stge","suer","suet","sure","surg","surge","tees","terse","tres","true","trug","trugs","tugs","urge","use","user"]},{"letters":"brindae","h":8,"w":10,"words":[["rained",4,4,"H"],["bride",0,8,"V"],["brained",1,6,"V"],["drain",3,4,"V"],["read",3,1,"H"],["earn",3,2,"V"],["brain",2,5,"H"],["near",0,1,"V"],["bear",1,0,"H"],["air",5,0,"H"],["dear",4,9,"V"],["idea",6,4,"H"]],"bonus":["abed","abide","abider","abri","aid","aide","aider","airbed","aired","and","ardeb","arid","bad","bade","bairn","ban","band","bander","bandier","bane","bani","bar","bard","barde","bare","bared","barn","bead","bean","beard","bed","bend","bide","bier","bind","binder","bine","bird","brad","brae","braid","bran","brand","bread","bred","brei","brie","brine","dare","darn","dean","debar","denar","denari","die","dinar","dine","diner","dire","drab","ear","end","era","inbred","irade","nadir","nard","nerd","nide","rabid","raid","rain","rand","rebid","rebind","red","redan","rein","rend","rib","riband","rid","ride","rind"]}],"daily":[{"letters":"dgnsio","h":6,"w":9,"words":[["dosing",4,0,"H"],["dogs",2,5,"V"],["nods",1,2,"V"],["sing",5,5,"H"],["gods",2,0,"V"],["song",2,8,"V"],["digs",2,5,"H"],["dig",0,7,"V"],["god",0,5,"H"],["nod",1,2,"H"]],"bonus":["ding","dingo","dings","dins","dog","doing","doings","dong","dongs","dons","gins","ions","nodi","nogs","sign","sin","snog","son"]},{"letters":"sgirdue","h":9,"w":8,"words":[["guiders",4,1,"H"],["guides",1,4,"V"],["urges",6,0,"H"],["urged",4,2,"V"],["guide",2,3,"H"],["dries",8,2,"H"],["rides",4,6,"V"],["rugs",5,0,"V"],["dig",2,1,"V"],["due",0,7,"V"]],"bonus":["die","dies","digs","dire","dirge","dirges","diseur","dreg","dregs","drug","drugs","druse","dues","ergs","gird","girds","grid","gride","grids","grue","grues","guider","guise","ides","red","reds","rid","ride","ridge","ridges","rids","rigs","rise","rude","rued","rues","rug","ruse","side","sir","sire","sired","sued","suer","surd","sure","surg","surge","surged","urge","use","used","user"]},{"letters":"ttosead","h":8,"w":7,"words":[["tasted",0,1,"H"],["toasted",0,1,"V"],["state",4,0,"H"],["taste",0,4,"V"],["toed",4,3,"V"],["dose",0,6,"V"],["dates",2,0,"H"],["dots",7,3,"H"],["toe",3,4,"H"],["eat",5,5,"V"]],"bonus":["ate","date","dato","does","dost","dot","dote","dotes","east","eats","etas","oast","oats","odea","odes","sad","sat","sate","sated","sea","seat","set","seta","sett","soda","sotted","stat","stated","stead","stet","stoa","stoat","tads","tats","tea","teas","teat","teats","teds","test","testa","toad","toads","toast","toea","toeas","toes","tote","toted","totes","tots"]},{"letters":"sthoug","h":7,"w":9,"words":[["south",0,3,"H"],["tough",0,6,"V"],["sought",0,3,"V"],["ought",4,0,"H"],["shot",2,0,"V"],["shout",2,0,"H"],["hot",4,6,"H"],["shut",1,8,"V"],["out",4,7,"V"],["got",6,5,"H"]],"bonus":["ghost","gosh","goth","goths","gout","gush","gust","gusto","guts","hogs","host","hots","hug","hugs","huts","oust","outs","shtg","sough","thou","thous","thug","thugs","thus","togs","tosh","toughs","tugs","tush"]},{"letters":"hrcacts","h":9,"w":8,"words":[["scratch",4,0,"H"],["trash",3,2,"V"],["charts",3,6,"V"],["chart",0,4,"V"],["cars",0,4,"H"],["cast",2,0,"V"],["acts",8,3,"H"],["cat",2,3,"H"],["car",6,4,"H"],["sat",0,7,"V"]],"bonus":["acct","act","arch","archt","arcs","art","arts","astr","cart","carts","cash","catch","cats","char","chars","chat","chats","crash","cratch","csch","hart","harts","hast","hat","hats","rash","rat","rath","rats","scar","scat","stacc","star","starch","tach","tahr","tars","thar"]},{"letters":"dshaere","h":8,"w":9,"words":[["headers",7,1,"H"],["shared",2,4,"V"],["hears",2,0,"H"],["shade",1,0,"V"],["heres",3,7,"V"],["heads",0,2,"V"],["here",0,2,"H"],["sea",4,2,"H"],["she",3,6,"H"],["see",1,8,"V"]],"bonus":["adhere","adheres","aedes","ares","arsed","ashed","dahs","dare","dares","dash","dasher","dear","dears","deer","dree","ear","eared","ears","ease","eased","era","eras","erase","erased","ersh","hade","hades","haeres","hard","hards","hare","hared","hares","head","header","hear","heard","hearse","heder","heed","heeds","her","herd","herds","hers","rads","rash","read","red","rede","reds","reed","reseda","rhea","rheas","sad","sard","sear","seared","seed","seer","sere","shad","shard","share","shear","sheared","shed","sheer","sher","shred"]},{"letters":"wteiar","h":9,"w":7,"words":[["waiter",4,0,"H"],["write",2,2,"V"],["tear",6,1,"H"],["water",0,5,"V"],["wear",1,3,"H"],["rat",6,4,"V"],["raw",2,0,"H"],["war",0,0,"V"],["rate",8,2,"H"],["wet",0,0,"H"]],"bonus":["air","airt","art","ate","ear","eat","era","irate","rite","tare","tea","tie","tier","tire","wait","ware","wart","weir","wert","wire","wit","wite","writ"]},{"letters":"crdnoew","h":9,"w":8,"words":[["crowned",4,0,"H"],["wonder",1,6,"V"],["cored",4,0,"V"],["crowd",1,3,"H"],["word",6,4,"H"],["rowed",3,2,"V"],["drown",0,4,"V"],["one",6,5,"V"],["owe",8,3,"H"],["end",7,0,"H"]],"bonus":["cero","code","coder","coed","cone","cord","core","corn","corned","cow","cowed","cower","cred","credo","crew","crone","crow","crowed","crown","deco","decor","doer","done","dower","down","downer","drew","drone","econ","endow","enow","nerd","new","nod","node","nor","now","once","ordn","owed","own","owned","owner","recd","recon","red","redo","rend","rod","rode","ronde","row","wed","wend","won","wore","worn","wren"]},{"letters":"ldaigno","h":6,"w":9,"words":[["loading",2,0,"H"],["land",1,2,"V"],["long",2,0,"V"],["gain",0,4,"V"],["glad",2,6,"V"],["dig",5,6,"H"],["log",3,6,"H"],["nod",4,0,"H"],["goal",0,4,"H"],["dog",1,8,"V"]],"bonus":["agio","ago","agon","aid","algid","algin","algoid","align","aloin","along","and","anil","dago","dang","danio","diag","dial","dialog","ding","dingo","doing","doling","dona","dong","donga","ganoid","gild","gland","glia","goad","god","gold","gonad","idol","lading","ladino","laid","lain","lang","lid","lido","ligan","ligand","ling","lingo","lino","lion","load","loan","logan","logia","login","loin","nail","nodal","nodi","noil","oil","old","olid"]},{"letters":"wasedt","h":8,"w":6,"words":[["wasted",6,0,"H"],["dates",3,4,"V"],["seat",4,1,"V"],["sweat",4,1,"H"],["saw",2,2,"V"],["west",2,0,"H"],["eat",0,3,"V"],["weds",0,2,"H"],["sea",0,5,"V"],["sew",0,0,"V"]],"bonus":["ate","awed","awes","date","daws","dews","east","eats","etas","sad","sat","sate","sated","sawed","set","seta","stead","stew","swat","tads","taws","tea","teas","teds","twas","wade","wades","wads","was","wast","waste","wed","wet","wets"]},{"letters":"eonsirc","h":7,"w":9,"words":[["coiners",2,0,"H"],["senior",0,3,"V"],["since",0,3,"H"],["coins",1,1,"V"],["score",2,6,"V"],["nose",4,5,"H"],["rice",1,8,"V"],["one",6,4,"H"],["nor",0,5,"V"],["sir",5,1,"H"]],"bonus":["censor","cero","ceros","cine","cion","cire","coin","coiner","coir","coirs","cone","cons","core","cores","corn","corns","corse","cosine","cries","crine","crinose","crone","crones","cronies","econ","eons","eosin","ice","ices","icon","icons","incr","incs","ions","iron","irons","nice","nicer","noes","noise","nosier","once","ones","orcein","orcs","ores","ornis","oscine","osier","recoin","recon","recons","rein","resin","rices","rinse","rise","risen","rocs","roes","rose","rosin","scion","scone","scorn","senor","serin","sin","sine","sire","siren","snore","son","sone","sonic","sore","sori","sorn"]},{"letters":"agsedls","h":9,"w":7,"words":[["glassed",4,0,"H"],["seals",0,3,"V"],["gases",2,2,"H"],["sales",4,4,"V"],["deals",6,1,"H"],["glads",8,0,"H"],["ages",0,0,"H"],["glad",3,1,"V"],["sad",2,6,"V"],["age",0,5,"V"]],"bonus":["aged","ales","dags","dale","dales","deal","degas","egad","egads","gads","gale","gales","gals","gas","gassed","geld","gelds","gels","glade","glades","glass","lade","lades","lads","lags","lase","lased","lases","lass","lead","leads","leas","leg","legs","less","sades","sage","sages","sags","sale","sea","seal","seas","slag","slags","sled","sleds"]},{"letters":"hedria","h":7,"w":8,"words":[["haired",3,2,"H"],["ride",3,5,"V"],["aired",5,1,"H"],["dear",3,7,"V"],["hair",3,2,"V"],["idea",0,3,"V"],["hard",1,0,"H"],["ear",0,1,"V"],["hide",0,6,"V"],["aid",1,5,"H"]],"bonus":["aide","aider","air","arid","dare","die","dire","era","hade","hare","hared","head","hear","heard","heir","her","herd","hid","hider","hied","hire","hired","irade","raid","read","red","rehi","rhea","rid"]},{"letters":"ecarthr","h":9,"w":8,"words":[["charter",6,0,"H"],["teach",4,2,"V"],["rather",1,6,"V"],["chat",2,4,"H"],["react",3,0,"V"],["race",0,4,"V"],["chart",0,1,"H"],["heart",8,2,"H"],["the",4,5,"H"],["car",0,1,"V"]],"bonus":["ace","ache","acre","act","arch","archer","archt","art","ate","care","carer","caret","cart","carte","carter","cat","cate","cater","cert","char","chare","charr","cheat","chert","crate","crater","each","ear","earth","eat","echt","era","etch","hare","hart","hat","hate","hater","hear","heat","her","racer","rare","rat","rate","rater","rath","rathe","reach","rear","rect","retch","rhea","rhet","tace","tach","tache","tahr","tare","tea","tear","tech","terr","terra","thar","theca","trace","tracer"]},{"letters":"dwordce","h":8,"w":9,"words":[["crowded",5,0,"H"],["worded",2,4,"V"],["cowed",7,0,"H"],["cored",1,6,"V"],["odd",2,6,"H"],["row",2,2,"H"],["red",0,8,"V"],["wore",0,2,"V"],["wed",0,2,"H"],["owe",3,0,"H"]],"bonus":["cero","code","coded","coder","coed","cord","corded","core","cow","cower","cred","credo","crew","crow","crowd","crowed","decd","deco","decor","doer","dower","drew","eddo","odder","owed","recd","redd","redo","rod","rode","rowed","word"]},{"letters":"aetvrl","h":7,"w":9,"words":[["travel",2,3,"H"],["alter",0,3,"V"],["late",3,0,"H"],["tear",0,5,"V"],["rate",2,1,"V"],["alert",1,8,"V"],["ear",4,6,"H"],["let",5,0,"H"],["era",4,6,"V"],["rat",6,5,"H"]],"bonus":["art","artel","ate","aver","avert","earl","eat","later","lave","laver","leva","rale","ratel","rave","ravel","real","tael","tale","taler","tare","tea","teal","trave","vale","valet","varlet","veal","vela","velar","vert","vet"]},{"letters":"nipaedt","h":8,"w":8,"words":[["painted",5,0,"H"],["pained",2,3,"V"],["taped",3,0,"V"],["pined",2,3,"H"],["tide",0,7,"V"],["tend",0,5,"V"],["date",7,3,"H"],["paint",0,1,"H"],["eat",5,5,"V"],["pin",0,1,"V"]],"bonus":["adept","adit","aid","aide","and","ante","anted","anti","aped","ate","dean","dent","dept","detain","die","diet","dine","dint","edit","end","etna","idea","inapt","inept","nap","nape","neap","neat","net","nide","nipa","pad","paid","pain","pan","pandit","pane","paned","pant","panted","pantie","pate","paten","patin","patine","pean","peat","pedant","pen","pend","pent","pentad","pet","pie","pied","piet","pieta","pine","pineta","pint","pinta","pit","pita","tain","tap","tape","tea","ten","tenia","tepid","tie","tied","tin","tine","tinea","tined","tip"]},{"letters":"ngapile","h":9,"w":7,"words":[["leaping",4,0,"H"],["plain",4,3,"V"],["angel",3,5,"V"],["plane",8,0,"H"],["lane",1,1,"V"],["page",2,0,"H"],["panel",6,2,"H"],["pie",0,3,"V"],["pine",0,3,"H"],["lie",4,0,"V"]],"bonus":["age","agile","algin","alien","align","alpine","angle","anil","anile","aping","elan","gain","gale","gap","gape","gean","genial","genip","glean","glen","glia","ilea","ingle","lain","lang","lap","lapin","lean","leap","leg","lien","ligan","linage","line","ling","lip","nail","nap","nape","neap","nipa","pail","pain","pale","paling","pan","pane","pang","peag","peal","pealing","pean","pen","penal","peng","pig","pile","pin","pineal","ping","plage","plan","plea","plena"]},{"letters":"diadel","h":9,"w":7,"words":[["dialed",4,0,"H"],["ideal",0,3,"V"],["lead",1,0,"V"],["dead",1,3,"H"],["idea",0,6,"V"],["aided",4,2,"V"],["dad",8,2,"H"],["lie",7,0,"H"],["aid",6,4,"V"],["deal",6,2,"H"]],"bonus":["add","addle","aide","ailed","dale","dedal","deil","deli","dial","die","died","idle","idled","ilea","laddie","lade","laded","laid","lid","lied"]},{"letters":"sentino","h":9,"w":7,"words":[["tension",4,0,"H"],["tennis",0,4,"V"],["noise",1,0,"H"],["stone",1,6,"V"],["tones",4,0,"V"],["notes",4,2,"V"],["note",6,0,"H"],["site",8,2,"H"],["inn",0,0,"V"],["net",2,4,"H"]],"bonus":["eons","eosin","inns","inset","inst","intens","into","intone","ions","neon","nest","nets","nine","nines","nits","noes","none","nones","nonet","nose","not","one","ones","onset","onsite","sennit","sent","set","sin","sine","sit","snit","snot","son","sone","sonnet","stein","steno","ten","tenno","tennos","tenon","tenons","tens","tie","ties","tin","tine","tines","tins","toe","toes","ton","tone","tonne","tonnes","tons"]},{"letters":"anrlege","h":9,"w":8,"words":[["general",7,1,"H"],["angel",3,7,"V"],["angle",3,2,"V"],["range",3,1,"H"],["green",0,5,"V"],["large",0,2,"H"],["eager",5,0,"H"],["leg",4,0,"V"],["era",6,5,"V"],["ear",1,1,"V"]],"bonus":["age","agee","agree","alee","anele","anger","angler","eagle","eagre","earl","earn","elan","engr","enlarge","enrage","erne","gale","galere","gean","gear","gene","geneal","genera","genre","glare","glean","gleaner","glee","glen","gnarl","gran","gree","lager","lane","lang","lean","leaner","learn","leer","near","neral","rage","rale","ranee","rang","real","reel","regal","regale","regnal","renal"]},{"letters":"ndawer","h":9,"w":7,"words":[["wander",4,1,"H"],["warned",0,5,"V"],["read",1,3,"H"],["drawn",0,3,"V"],["wear",4,1,"V"],["dawn",6,0,"H"],["and",0,1,"H"],["new",6,3,"V"],["end",7,3,"H"],["era",2,1,"H"]],"bonus":["anew","awed","awned","dare","darn","dean","dear","denar","dewan","draw","drew","ear","earn","nard","near","nerd","rand","raw","red","redan","rend","wade","wader","wand","wane","waned","war","ward","warden","ware","warn","wean","wed","wend","wren"]},{"letters":"rglyael","h":9,"w":8,"words":[["gallery",4,0,"H"],["largely",2,5,"V"],["really",1,3,"V"],["large",3,1,"V"],["layer",8,3,"H"],["lay",2,5,"H"],["era",6,5,"H"],["year",1,0,"H"],["leg",7,0,"H"],["ray",0,7,"V"]],"bonus":["aery","age","agley","all","allergy","alley","ally","argyle","aryl","ear","earl","early","eyra","gale","gall","galley","gayer","gear","glare","glary","gley","gray","gyral","gyre","lager","leal","legal","lyre","rage","rale","rall","rally","real","regal","regally","relay","rely","yare","yell"]},{"letters":"oerftnu","h":8,"w":8,"words":[["fortune",3,1,"H"],["outer",1,4,"V"],["turn",5,2,"H"],["note",0,7,"V"],["often",3,2,"V"],["rent",7,0,"H"],["fun",0,5,"H"],["nor",5,5,"V"],["tour",4,0,"V"],["one",6,5,"H"]],"bonus":["euro","fern","fetor","font","for","fore","fort","forte","fount","four","fret","froe","front","furn","futon","net","neut","not","nut","our","out","outre","reft","rote","roue","rout","route","run","rune","runt","ten","tenor","terf","tern","toe","tofu","ton","tone","toner","tore","torn","tron","true","tune","tuner","turf","unto"]},{"letters":"awelry","h":9,"w":6,"words":[["lawyer",6,0,"H"],["early",2,3,"V"],["layer",2,5,"V"],["real",2,2,"H"],["wear",4,1,"V"],["war",0,2,"V"],["ray",4,3,"H"],["law",0,0,"H"],["era",6,4,"V"],["lay",8,3,"H"]],"bonus":["aery","aryl","awry","ear","earl","eyra","lyre","rale","raw","relay","rely","wale","ware","wary","way","weal","weary","yare","yawl","year"]},{"letters":"issnure","h":7,"w":9,"words":[["sunrise",6,0,"H"],["sirens",1,5,"V"],["nurses",3,3,"H"],["nurse",0,8,"V"],["rises",2,0,"V"],["suns",1,3,"V"],["sirs",4,0,"H"],["uses",1,2,"H"],["sun",0,6,"H"],["run",4,2,"V"]],"bonus":["insure","insures","inure","inures","issue","issuer","ness","nisus","rein","resin","rinse","rinses","rise","risen","rues","ruin","ruins","rune","runes","runs","ruse","ruses","sens","serin","serins","sin","sine","sines","sins","sinus","sir","sire","siren","sires","suer","sues","sure","urine","urns","ursine","use","user","users"]},{"letters":"rsoecdu","h":9,"w":8,"words":[["sourced",0,0,"H"],["coursed",0,4,"V"],["course",2,2,"H"],["scored",5,0,"H"],["cords",4,2,"V"],["source",8,2,"H"],["score",4,7,"V"],["sure",5,0,"V"],["dose",0,6,"V"],["red",7,0,"H"]],"bonus":["cero","ceros","cerous","code","coder","coders","codes","cods","coed","coeds","cord","core","cored","cores","corse","cred","credo","credos","crouse","crud","crude","crus","cruse","cuds","cued","cues","curd","curds","cure","cured","cures","curs","curse","cursed","deco","decor","decors","desc","docs","doer","doers","does","douce","dour","douse","douser","druse","duce","due","dues","duos","duro","ecru","ecus","educ","escudo","euro","euros","odes","orcs","ores","our","ours","recd","redo","reds","rocs","rod","rode","rods","roes","rose","roue","roues","rouse","roused","rude","rued","rues","ruse","scour","scoured","scrod","scud","scudo","sore","sour","soured","sucre","sudor","sued","suer","surd","uredo","use","used","user"]},{"letters":"dieits","h":9,"w":7,"words":[["tidies",2,0,"H"],["tides",0,2,"V"],["sited",0,0,"V"],["diets",0,4,"V"],["tide",0,2,"H"],["sit",4,4,"H"],["ties",4,6,"V"],["site",6,3,"H"],["set",6,3,"V"],["tie",7,1,"H"]],"bonus":["deist","die","dies","diet","dist","dits","edit","edits","ides","side","teds","tied"]},{"letters":"prenods","h":8,"w":9,"words":[["respond",5,1,"H"],["posed",3,3,"V"],["spend",2,6,"V"],["ponds",7,0,"H"],["drops",3,0,"H"],["rods",0,4,"V"],["roped",0,4,"H"],["send",0,0,"V"],["pen",3,6,"H"],["one",2,8,"V"]],"bonus":["dens","doer","doers","does","done","dons","dope","doper","dopers","dopes","dorp","dose","drone","drones","drop","end","ends","eons","epos","nerd","nerds","nod","node","nodes","nods","noes","nope","nor","nose","nosed","odes","ones","oped","open","opens","opes","ordn","ores","pend","pends","pens","peon","peons","person","peso","pods","pond","ponder","ponders","pone","pones","pons","pore","pored","pores","pose","poser","pred","pres","prod","prods","pron","prone","pros","prose","red","redo","reds","rend","rends","reps","resp","rod","rode","roes","ronde","rope","ropes","rose","senor","snore","snored","son","sonde","sone","sore","sorn","sped","spore","spored"]},{"letters":"ginsbua","h":8,"w":9,"words":[["abusing",3,0,"H"],["gains",3,6,"V"],["basing",5,3,"H"],["using",1,8,"V"],["bags",0,3,"V"],["guns",7,3,"H"],["sign",0,5,"V"],["bans",3,1,"V"],["basin",1,2,"H"],["bag",5,3,"V"]],"bonus":["anis","ban","bang","bangs","bani","bias","big","bins","bug","bugs","bung","bungs","buns","bus","busing","gabs","gain","gas","gins","gnus","guan","guans","guib","gun","nabs","nags","nibs","nubs","sabin","sain","sang","sin","sing","snag","snub","snug","suing","sun","sung"]},{"letters":"daeiln","h":9,"w":6,"words":[["nailed",2,0,"H"],["lane",1,1,"V"],["line",2,3,"V"],["lean",5,2,"H"],["lend",5,2,"V"],["deal",8,2,"H"],["die",0,4,"V"],["end",4,5,"V"],["lie",6,0,"H"],["lid",6,0,"V"]],"bonus":["aid","aide","ailed","alien","and","anil","anile","dale","dean","deil","deli","denial","dial","dine","elan","eland","idea","ideal","idle","ilea","lade","laden","laid","lain","land","lead","lied","lien","lined","nail","nide"]},{"letters":"ndrgeai","h":9,"w":8,"words":[["grained",5,1,"H"],["danger",0,2,"V"],["reading",2,7,"V"],["rained",3,4,"V"],["ringed",7,0,"H"],["ranged",1,1,"H"],["anger",3,0,"H"],["gain",5,1,"V"],["ear",2,0,"V"],["red",0,5,"V"]],"bonus":["age","aged","aid","aide","aider","air","aired","and","arid","dang","dare","darg","daring","darn","dean","dear","deign","denar","denari","deraign","diag","die","dig","dinar","dine","diner","ding","dinge","dire","dirge","drag","drain","dreg","earing","earn","egad","end","engird","engr","era","gained","gainer","gander","garden","gean","gear","gird","grad","grade","gradin","grain","gran","grand","grid","gride","grin","grind","idea","irade","nadir","nard","near","nerd","nide","rage","raged","ragi","raid","rain","rand","rang","range","read","redan","regain","reign","rein","rend","rid","ride","ridge","rind","ring"]},{"letters":"igtdehr","h":9,"w":7,"words":[["righted",4,0,"H"],["eight",3,1,"V"],["hired",0,6,"V"],["right",0,4,"V"],["tire",7,1,"H"],["tiger",2,2,"H"],["her",0,2,"H"],["get",6,4,"V"],["hit",0,2,"V"],["the",8,4,"H"]],"bonus":["die","diet","dig","dight","dire","dirge","dirt","dither","dreg","edit","gird","girt","girted","girth","gite","grid","gride","grit","grith","heir","herd","hid","hide","hider","hied","hire","red","rehi","retd","rhet","rid","ride","ridge","rite","their","third","tide","tie","tied","tier","tired","tried","trig"]},{"letters":"lrnyae","h":8,"w":8,"words":[["nearly",3,0,"H"],["learn",3,4,"V"],["layer",0,1,"V"],["near",0,3,"V"],["lane",1,0,"H"],["real",5,2,"H"],["lean",7,1,"H"],["rely",0,5,"V"],["era",1,5,"H"],["ear",0,7,"V"]],"bonus":["aery","any","aryl","earl","early","earn","elan","eyra","lay","lyre","nary","neral","rale","ray","relay","renal","yare","yarn","yean","year","yearn"]},{"letters":"nlbdkea","h":8,"w":9,"words":[["blanked",3,0,"H"],["banked",0,4,"V"],["blank",1,2,"V"],["ankle",1,4,"H"],["lend",0,8,"V"],["blade",3,0,"V"],["deal",5,4,"H"],["and",5,6,"V"],["land",7,3,"H"],["lab",1,0,"H"]],"bonus":["abed","able","bad","bade","bake","baked","bald","bale","baled","balk","balked","ban","band","bane","bank","bead","beak","bean","bed","bend","bland","bleak","bled","blend","dale","dank","dean","elan","eland","end","kale","knead","lade","laden","lake","lane","lank","lead","leak","lean"]},{"letters":"mresyta","h":9,"w":8,"words":[["mastery",2,1,"H"],["master",1,2,"V"],["mates",4,0,"H"],["terms",6,0,"H"],["stream",0,6,"V"],["rates",0,4,"V"],["arms",0,3,"H"],["mats",4,0,"V"],["set",6,4,"V"],["mat",8,2,"H"]],"bonus":["aery","ares","arm","armet","armets","army","art","arts","artsy","arty","aster","astr","ate","ayes","ear","ears","east","easy","eat","eats","era","eras","erst","estray","etas","eyas","eyra","eyras","mare","mares","mars","mart","marts","maser","mast","mate","mater","maters","matey","mateys","may","mayest","mayst","meas","meat","meats","meaty","mesa","met","meta","rams","rat","rate","rats","ray","rays","ream","reams","resat","rest","rets","ryas","same","samey","sat","sate","satem","satyr","say","sayer","sea","seam","seamy","sear","seat","seta","smart","smarty","smear","smeary","star","stare","stay","stayer","steam","steamy","stem","ster","stray","streamy","tame","tamer","tamers","tames","tams","tare","tares","tars","taser","tea","team","teams","tear","tears","teary","teas","term","tram","trams","tray","trays","treas","tres","trey","treys","try","tryma","yams","yare","year","years","yeas","yeast","yes","yest","yet"]},{"letters":"reaxst","h":8,"w":8,"words":[["rates",4,3,"H"],["taxers",1,6,"V"],["stare",2,4,"V"],["tears",2,0,"H"],["extras",0,0,"V"],["seat",0,2,"V"],["set",5,0,"H"],["eat",5,1,"V"],["east",0,0,"H"],["star",7,0,"H"]],"bonus":["ares","art","arts","aster","astr","ate","axes","ear","ears","eats","era","eras","erst","etas","extra","rat","rate","rats","resat","rest","rets","sat","sate","sea","sear","seta","sext","ster","tare","tares","tars","taser","tax","taxer","taxes","tea","tear","teas","treas","tres"]},{"letters":"poiornt","h":7,"w":9,"words":[["portion",3,0,"H"],["troop",2,2,"V"],["option",0,4,"V"],["print",0,6,"V"],["trip",0,0,"V"],["port",1,4,"H"],["point",5,1,"H"],["tin",0,0,"H"],["too",4,6,"H"],["pot",3,8,"V"]],"bonus":["into","intr","intro","iron","nitro","nor","not","onto","pin","pint","pinto","pion","pirn","pit","piton","poon","poor","porno","potion","prion","pron","pronto","proton","riot","rip","root","tip","ton","top","topi","tori","torn","trio","tron"]},{"letters":"sgrdase","h":7,"w":9,"words":[["grassed",4,0,"H"],["grades",1,6,"V"],["gears",2,2,"V"],["gases",0,4,"V"],["aged",3,0,"V"],["ages",2,1,"H"],["ear",5,6,"H"],["sad",6,2,"H"],["gas",1,6,"H"],["sea",0,1,"V"]],"bonus":["age","ares","arsed","dags","dare","dares","darg","dear","dears","degas","drag","drags","dreg","dregs","dress","ears","egad","egads","era","eras","ergs","gads","gars","gassed","gasser","gear","grad","grade","grads","grass","rads","rage","raged","rages","rags","read","red","reds","sades","sage","sager","sages","sags","sard","sards","sarge","sarges","sear","sears","seas"]},{"letters":"ndalis","h":7,"w":8,"words":[["island",3,0,"H"],["aids",2,0,"V"],["dial",1,3,"V"],["lands",0,5,"V"],["dials",1,3,"H"],["sand",1,7,"V"],["sin",5,0,"H"],["sad",4,5,"H"],["and",4,6,"V"],["lid",6,4,"H"]],"bonus":["aid","ails","anil","anils","anis","dais","dins","lads","laid","lain","land","lids","nail","nails","said","sail","sain","sild","slain","slid","snail"]},{"letters":"dkerict","h":9,"w":8,"words":[["tricked",0,1,"H"],["cried",0,4,"V"],["credit",3,2,"H"],["direct",2,6,"V"],["rice",6,4,"H"],["iced",2,2,"V"],["kid",5,0,"H"],["rid",6,4,"V"],["red",8,2,"H"],["kit",5,0,"V"]],"bonus":["cedi","cert","cider","cire","cite","cited","cred","crit","deck","dice","dicer","dicker","dict","die","diet","dike","dire","dirk","dirt","edict","edit","ice","irked","kier","kite","kited","recd","reck","rect","recti","retd","riced","rick","ricked","ride","rite","tick","ticked","ticker","tide","tie","tied","tier","tire","tired","trek","trice","trick","tried","trike"]},{"letters":"ectsnot","h":7,"w":9,"words":[["contest",1,0,"H"],["stone",0,6,"V"],["sent",0,4,"V"],["nose",0,1,"V"],["tones",3,4,"H"],["cost",1,8,"V"],["net",3,0,"H"],["not",3,0,"V"],["tent",3,2,"V"],["ton",5,0,"H"]],"bonus":["cent","cento","cents","cone","cons","cont","conte","coset","coste","cote","cotes","cots","econ","eons","nest","nets","noes","note","notes","octet","octets","once","one","ones","onset","scent","scone","scot","sect","set","sett","snot","son","sone","steno","stent","stet","ten","tens","tents","test","teston","toe","toes","tone","tons","tote","totes","tots"]},{"letters":"asrche","h":8,"w":8,"words":[["races",4,0,"H"],["search",0,2,"V"],["crash",3,0,"V"],["reach",1,1,"H"],["hear",7,0,"H"],["cars",1,4,"V"],["race",3,4,"H"],["car",3,6,"V"],["care",0,7,"V"],["era",5,5,"H"]],"bonus":["ace","aces","ache","aches","acre","acres","arch","arches","arcs","ares","cares","carse","case","cash","cesar","char","chare","chars","chase","chaser","each","ear","ears","eras","ersh","eschar","hare","hares","hears","her","hers","rash","rhea","rheas","scar","scare","sea","sear","sech","share","she","shear","sher"]},{"letters":"tepinta","h":7,"w":9,"words":[["patient",2,2,"H"],["paint",2,2,"V"],["pine",5,0,"H"],["neat",2,7,"V"],["pie",0,6,"V"],["pet",0,6,"H"],["tin",2,4,"V"],["tea",3,0,"H"],["tap",3,0,"V"],["nap",4,6,"H"]],"bonus":["ante","anti","ate","attn","eat","etna","inapt","inept","nape","neap","net","nipa","pain","pan","pane","pant","pantie","pate","paten","patent","patin","patine","patten","pean","peat","pen","pent","petit","piet","pieta","pin","pineta","pint","pinta","pit","pita","pitta","tain","taint","tape","teat","ten","tenia","tent","tie","tine","tinea","tint","tip","titan"]},{"letters":"lslaerm","h":7,"w":9,"words":[["smaller",4,2,"H"],["realms",0,3,"V"],["malls",1,5,"V"],["laser",0,8,"V"],["male",1,0,"H"],["sale",0,1,"V"],["ear",4,7,"V"],["era",6,6,"H"],["arms",2,5,"H"],["all",0,6,"H"]],"bonus":["ales","alms","ares","arm","earl","earls","ears","ells","elms","eras","lame","lamer","lamers","lames","lams","lares","lase","leal","leas","males","mall","mare","mares","marl","marls","mars","maser","meal","meals","meas","mesa","rale","rales","rall","rams","real","realm","reals","ream","reams","same","sea","seal","seam","sear","sell","slam","small","smear","smell"]},{"letters":"tnlise","h":7,"w":9,"words":[["silent",6,1,"H"],["lines",2,1,"V"],["listen",1,5,"V"],["sent",3,5,"H"],["line",3,0,"H"],["nest",0,8,"V"],["tiles",0,3,"V"],["site",0,1,"H"],["ten",0,6,"H"],["net",3,7,"V"]],"bonus":["enlist","inlet","inset","inst","intel","isle","islet","istle","leis","lenis","lens","lent","lest","let","lets","lie","lien","liens","lies","lint","lints","list","lite","nets","nits","set","silt","sin","sine","sit","slit","snit","stein","stile","tels","tens","tie","ties","tile","tin","tine","tines","tins","tinsel"]},{"letters":"dhaegcr","h":8,"w":9,"words":[["charged",3,1,"H"],["reach",1,3,"V"],["charge",1,0,"H"],["cared",3,1,"V"],["grace",3,5,"V"],["hear",5,3,"H"],["each",7,5,"H"],["read",0,7,"V"],["ace",0,0,"V"],["her",6,0,"H"]],"bonus":["aced","ache","ached","acre","acred","age","aged","arced","arch","arched","cade","cadge","cadger","cadre","cage","caged","cager","car","card","care","cedar","chad","char","chard","chare","chge","crag","cred","dace","dare","darg","dear","drag","dreg","ear","egad","era","gear","gerah","graced","grad","grade","hade","hard","hare","hared","head","heard","herd","race","raced","rage","raged","recd","red","rhea"]},{"letters":"iremrad","h":9,"w":7,"words":[["married",5,0,"H"],["dream",4,2,"V"],["rider",4,4,"V"],["rared",7,1,"H"],["armed",1,6,"V"],["dear",2,3,"H"],["made",0,3,"V"],["aimed",0,1,"H"],["aim",3,0,"V"],["arm",0,1,"V"]],"bonus":["admire","admirer","aid","aide","aider","air","aired","amid","amide","amie","arid","dame","dare","darer","derma","diam","die","dime","dimer","dire","direr","dram","drear","drier","ear","emir","era","idea","idem","irade","mad","maid","mare","marred","mead","media","mire","mired","raid","raider","ramie","rare","read","ream","rear","rearm","red","rid","ride","rim","rime","rimed"]},{"letters":"rdteso","h":8,"w":8,"words":[["sorted",4,0,"H"],["store",0,4,"V"],["stored",2,2,"H"],["rose",0,2,"H"],["dots",2,7,"V"],["sort",4,0,"V"],["rod",6,0,"H"],["dose",4,5,"V"],["rest",7,4,"H"],["rods",4,2,"V"]],"bonus":["doer","doers","does","dost","dot","dote","doter","doters","dotes","erst","odes","ores","orts","red","redo","reds","retd","rets","rode","roes","rote","rots","set","sore","ster","stor","strode","teds","toe","toed","toes","tore","tors","torse","tres","trod"]},{"letters":"etmesip","h":7,"w":9,"words":[["empties",2,2,"H"],["meets",1,2,"V"],["meet",1,7,"V"],["times",2,5,"V"],["pits",4,0,"H"],["steep",0,0,"V"],["seem",6,5,"H"],["sip",0,4,"V"],["met",4,5,"H"],["set",0,4,"H"]],"bonus":["emit","emits","imps","item","items","mete","metes","metis","mist","mite","mites","pees","pest","pet","pets","pie","pies","piet","piste","pit","see","seep","semi","sept","septime","simp","sit","site","smite","spit","spite","stem","step","stipe","teem","teems","tees","temp","temps","tie","ties","time","tip","tips"]},{"letters":"ceahrds","h":9,"w":8,"words":[["crashed",5,0,"H"],["sacred",3,0,"V"],["shade",4,4,"V"],["cards",2,6,"V"],["races",4,2,"V"],["reach",2,3,"H"],["her",0,3,"V"],["sea",0,5,"V"],["each",0,0,"H"],["ear",8,4,"H"]],"bonus":["ace","aced","aces","ache","ached","aches","acre","acred","acres","arced","arch","arched","arches","arcs","ares","arsed","ashed","cade","cadre","cadres","cads","car","card","care","cared","cares","cars","carse","case","cased","cash","cashed","cedar","cedars","cesar","chad","chads","char","chard","chare","chars","chase","chased","chaser","crash","cred","dace","daces","dahs","dare","dares","dash","dasher","dear","dears","desc","ears","era","eras","ersh","eschar","hade","hades","hard","hards","hare","hared","hares","head","heads","hear","heard","hears","herd","herds","hers","race","raced","rads","rash","read","recd","red","reds","rhea","rheas","sad","sard","scad","scar","scare","scared","sear","search","sech","shad","shard","share","shared","she","shear","shed","sher","shred"]},{"letters":"aewrdr","h":9,"w":6,"words":[["drawer",2,0,"H"],["drew",0,4,"V"],["reward",2,1,"V"],["draw",6,0,"H"],["rared",0,0,"H"],["wed",6,3,"V"],["ear",7,3,"H"],["war",4,1,"H"],["red",0,0,"V"],["era",6,5,"V"]],"bonus":["awed","dare","darer","dear","drear","rare","raw","rawer","read","rear","redraw","wade","wader","ward","warder","ware","warred","wear"]},{"letters":"hsrseap","h":9,"w":8,"words":[["shapers",3,1,"H"],["phrase",1,6,"V"],["shapes",6,2,"H"],["phrases",2,2,"V"],["shape",0,4,"V"],["shares",8,2,"H"],["hears",0,0,"H"],["era",5,0,"H"],["hear",4,0,"V"],["her",0,0,"V"]],"bonus":["apes","apse","apses","ares","ashes","asper","aspers","asps","ear","ears","eras","ersh","hare","hares","harp","harps","hasp","hasps","heap","heaps","herp","hers","pare","pares","pars","parse","parses","pase","pash","pass","passe","passer","pear","pears","peas","phase","phases","prase","pres","presa","press","raps","rash","rashes","rasp","rasps","reap","reaps","repass","reps","resp","rhea","rheas","saps","sash","sea","sear","sears","seas","seraph","seraphs","shaper","share","sharp","sharps","she","shear","shears","sher","shes","spae","spar","spare","spares","spars","sparse","spas","spear","spears"]},{"letters":"lrtedia","h":8,"w":9,"words":[["trailed",2,0,"H"],["tailed",0,3,"V"],["detail",0,0,"V"],["ideal",1,6,"V"],["tail",4,5,"H"],["lead",5,0,"H"],["tiled",2,8,"V"],["diet",0,0,"H"],["era",5,1,"V"],["air",7,1,"H"]],"bonus":["adit","aid","aide","aider","ailed","aired","airt","airted","alder","alert","alter","arid","ariel","aril","art","artel","ate","dale","dare","dart","date","dater","deal","dealt","dear","deil","deli","delta","derail","dial","dialer","die","dilate","dire","dirt","drat","ear","earl","eat","edit","idea","idle","idler","ilea","irade","irate","ital","lade","laid","lair","laird","lard","lari","late","lated","later","lati","let","liar","liard","lid","lie","lied","lira","lire","lite","liter","raid","rail","railed","rale","rat","rate","rated","ratel","read","real","red","redial","relaid","retail","retd","rial","rid","ride","riel","rile","riled","rite","tael","tale","taler","tali","tare","tared","tea","teal","tear","tidal","tide","tie","tied","tier","tilde","tile","tiler","tirade","tire","tired","trad","trade","trail","tread","triad","trial","trialed","tried"]},{"letters":"egnwis","h":8,"w":8,"words":[["sewing",3,2,"H"],["swing",3,2,"V"],["wins",3,4,"V"],["wine",0,3,"V"],["wines",6,0,"H"],["sing",0,7,"V"],["wing",1,2,"H"],["news",5,4,"H"],["sin",5,7,"V"],["new",3,6,"V"]],"bonus":["gens","gins","sew","sewn","sign","sine","sinew","singe","swig","swine","swinge","wens","wigs","win","wings","wise"]},{"letters":"tgknsia","h":9,"w":8,"words":[["takings",5,0,"H"],["asking",3,2,"V"],["tasking",3,1,"H"],["giants",0,6,"V"],["staking",0,0,"H"],["gains",8,2,"H"],["gain",5,5,"V"],["tank",5,0,"V"],["skin",2,4,"V"],["sin",0,0,"V"]],"bonus":["agist","akin","angst","anis","anti","antis","ants","ask","gait","gaits","gas","gaskin","gats","giant","gink","gins","gist","gits","gnat","gnats","inst","kain","kiang","kiangs","kina","kinas","king","kings","kist","kit","kits","knit","knits","nags","nits","sain","saint","sang","sank","sat","sati","satin","sating","sign","sika","sing","sink","sit","skat","skating","skint","skit","snag","snit","stag","stain","stang","stank","sting","stink","tag","tags","tain","takin","taking","takins","tang","tangs","tanks","tans","task","tin","ting","tings","tins"]},{"letters":"isgwlon","h":8,"w":9,"words":[["slowing",3,0,"H"],["longs",0,6,"V"],["lowing",2,2,"V"],["losing",1,0,"V"],["lows",1,5,"H"],["wins",2,4,"V"],["sign",1,8,"V"],["son",4,6,"H"],["oil",4,7,"V"],["oils",6,5,"H"]],"bonus":["gins","glow","glows","gown","gowns","ions","ling","lingo","lings","lino","lion","lions","log","login","logins","logs","loin","loins","long","low","nogs","noil","now","owing","owls","own","owns","silo","sin","sing","sling","slog","slow","snog","snow","soil","soling","song","sowing","sown","swig","swing","wigs","win","wing","wings","wino","winos","wogs","won"]},{"letters":"lpeyra","h":9,"w":7,"words":[["player",3,0,"H"],["pearl",1,2,"V"],["layer",0,4,"V"],["rely",5,0,"H"],["year",5,3,"V"],["early",7,2,"H"],["leap",0,0,"V"],["lap",0,4,"H"],["pray",4,6,"V"],["real",5,0,"V"]],"bonus":["aery","apery","aryl","ear","earl","era","eyra","lay","lyre","pale","paler","paly","pare","parley","pay","payer","peal","pear","pearly","play","plea","prey","pyre","rale","ray","reap","relay","repay","replay","reply","yare","yelp"]},{"letters":"wraegni","h":8,"w":8,"words":[["earing",2,0,"H"],["wearing",1,0,"V"],["grain",1,2,"V"],["range",0,4,"V"],["ring",0,4,"H"],["gain",7,0,"H"],["gear",0,7,"V"],["ear",4,4,"H"],["age",4,5,"V"],["era",6,5,"H"]],"bonus":["air","anew","anger","awing","earn","earwig","engr","gainer","gean","gnaw","gnawer","gran","grew","grin","near","new","rage","ragi","rain","rang","raw","regain","reign","rein","wage","wager","wain","wane","war","ware","waring","warn","wean","wear","weir","win","wine","wing","winger","wire","wren","wring"]},{"letters":"tssaetr","h":8,"w":9,"words":[["tasters",2,0,"H"],["stares",2,2,"V"],["tastes",7,0,"H"],["stars",1,0,"V"],["state",2,6,"V"],["treats",0,4,"V"],["tests",0,4,"H"],["stare",0,8,"V"],["era",6,6,"H"],["tea",4,4,"H"]],"bonus":["ares","art","arts","assert","asset","asst","aster","asters","astr","ate","ear","ears","east","eat","eats","eras","erst","etas","rat","rate","rates","rats","resat","rest","rests","rets","sat","sate","sates","sea","sear","sears","seas","seat","seats","set","seta","sets","sett","setts","star","start","starts","stat","stater","states","stats","ster","stet","stets","tare","tares","tars","tart","tarts","taser","tasers","tass","tasse","tasset","taste","taster","tater","taters","tats","tear","tears","teas","teat","teats","test","testa","testas","tetra","tetras","trass","treas","treat","tres","tress","tret"]}]};
+const REGIONS = [{"n": "London & the South East", "c": ["#2b3f66", "#e0a070"], "p": [["London", "LON"], ["Windsor", "WIN"], ["Oxford", "OXF"], ["Canterbury", "CAN"], ["Brighton", "BRI"], ["Dover", "DOV"], ["St Albans", "SAB"], ["Rochester", "ROC"]], "f": "Dover's white cliffs are made of chalk and rise about 100 metres above the English Channel."}, {"n": "The South Coast", "c": ["#1f5c7a", "#f0b46c"], "p": [["Portsmouth", "POR"], ["Southampton", "SOU"], ["Winchester", "WCH"], ["Salisbury", "SAL"], ["Chichester", "CHI"], ["Bournemouth", "BOU"]], "f": "HMS Victory, launched in 1765, is the oldest naval ship in the world still in commission."}, {"n": "The West Country", "c": ["#3b4a63", "#e8b48a"], "p": [["Bath", "BAT"], ["Bristol", "BRS"], ["Gloucester", "GLO"], ["Wells", "WEL"], ["Exeter", "EXE"], ["Plymouth", "PLY"], ["Truro", "TRU"], ["Penzance", "PEN"]], "f": "Cornwall has its own flag, a white cross on black, for St Piran, the patron saint of tin miners."}, {"n": "The Midlands", "c": ["#4a3d63", "#d9a06c"], "p": [["Stratford-upon-Avon", "STR"], ["Birmingham", "BIR"], ["Coventry", "COV"], ["Leicester", "LEI"], ["Nottingham", "NOT"], ["Lincoln", "LIN"], ["Worcester", "WOR"], ["Derby", "DBY"], ["Hereford", "HER"]], "f": "No place in England is farther from the sea than Coton in the Elms, in Derbyshire, about 70 miles from the coast."}, {"n": "East of England", "c": ["#355a63", "#e6c079"], "p": [["Cambridge", "CAM"], ["Ely", "ELY"], ["Norwich", "NOR"], ["Ipswich", "IPS"], ["Colchester", "COL"], ["Peterborough", "PET"]], "f": "Holme Fen, in the Fens, is the lowest land in Great Britain, about 2.75 metres below sea level."}, {"n": "The North West", "c": ["#33506b", "#d99a7a"], "p": [["Chester", "CHE"], ["Liverpool", "LIV"], ["Manchester", "MAN"], ["Lancaster", "LAN"], ["Carlisle", "CAR"], ["Blackpool", "BLA"], ["Preston", "PRE"]], "f": "Scafell Pike, in the Lake District, is the highest mountain in England at 978 metres."}, {"n": "Yorkshire & the North East", "c": ["#2d4557", "#c9a27a"], "p": [["Sheffield", "SHE"], ["Leeds", "LEE"], ["York", "YOR"], ["Hull", "HUL"], ["Durham", "DUR"], ["Newcastle", "NEW"], ["Bradford", "BRA"], ["Ripon", "RIP"], ["Scarborough", "SCA"]], "f": "The Angel of the North, near Gateshead, has wings 54 metres wide, as wide as a jumbo jet."}, {"n": "Wales", "c": ["#2c5240", "#d9b36c"], "p": [["Cardiff", "CDF"], ["Swansea", "SWA"], ["St Davids", "STD"], ["Caernarfon", "CAE"], ["Conwy", "CON"], ["Newport", "NWP"], ["Wrexham", "WRE"], ["Aberystwyth", "ABY"], ["Brecon", "BRE"]], "f": "Wales has more than 600 castles, more per square mile than almost any other country in Europe."}, {"n": "Scotland", "c": ["#2a3f5f", "#d98c6b"], "p": [["Edinburgh", "EDI"], ["Glasgow", "GLA"], ["Stirling", "STI"], ["St Andrews", "SAN"], ["Perth", "PER"], ["Dundee", "DUN"], ["Aberdeen", "ABE"], ["Inverness", "INV"], ["Oban", "OBA"], ["Fort William", "FTW"], ["Ayr", "AYR"], ["Elgin", "ELG"]], "f": "Scotland has about 790 islands, and Ben Nevis, at 1,345 metres, is the highest mountain in the British Isles."}, {"n": "Northern Ireland", "c": ["#27504a", "#e3b97a"], "p": [["Belfast", "BEL"], ["Armagh", "ARM"], ["Derry/Londonderry", "DER"], ["Newry", "NRY"], ["Bangor", "BNG"]], "f": "The Giant's Causeway is made of about 40,000 stone columns, left by an ancient volcanic eruption."}];
+const CITY = {"LON": ["London", "The capital of the United Kingdom, London sits on the River Thames. Big Ben, Tower Bridge, the Tower of London and Buckingham Palace attract millions of visitors. Its Underground, opened in 1863, is the oldest metro system in the world, and hundreds of languages are spoken in its streets.", "In south-east England, on the River Thames.", "England"], "WIN": ["Windsor", "Windsor Castle is the oldest and largest inhabited castle in the world, and has been a royal home for almost a thousand years. Across the river is Eton College, the famous school where many prime ministers studied. The Great Park nearby has deer roaming free.", "West of London, on the River Thames.", "England"], "OXF": ["Oxford", "Known as the city of dreaming spires, Oxford has the oldest university in the English-speaking world, with teaching since about 1096. Its colleges, the Bodleian Library and the round Radcliffe Camera fill the streets. Christ Church was used as a film location for Harry Potter.", "In central southern England, about 60 miles north-west of London.", "England"], "CAN": ["Canterbury", "Canterbury Cathedral is the mother church of the Anglican Communion and the seat of the Archbishop of Canterbury. Pilgrims have walked here since Thomas Becket was killed in 1170, a journey made famous by Chaucer in The Canterbury Tales. The old city walls still surround the centre.", "In Kent, in the south-east corner of England.", "England"], "BRI": ["Brighton", "A lively seaside city, Brighton is known for its pebble beach, the Palace Pier and the Royal Pavilion, a palace in Indian style built for the Prince Regent. Narrow lanes called The Lanes are full of little shops, and the city has a famous creative, festival-loving spirit.", "On the south coast, about 50 miles south of London.", "England"], "DOV": ["Dover", "Dover is the busiest ferry port in Europe, facing France across the Strait of Dover, only about 21 miles wide. The white cliffs are a symbol of home for travellers, and the medieval castle above the town has guarded the coast for nearly nine centuries.", "On the south-east coast of Kent, facing France.", "England"], "SAB": ["St Albans", "St Albans was the Roman city of Verulamium, and is named after Alban, said to be the first British martyr. Its great Norman cathedral, partly built with reused Roman bricks, has one of the longest naves in England. Roman walls and a Roman theatre can still be visited.", "In Hertfordshire, about 20 miles north of London.", "England"], "ROC": ["Rochester", "Rochester has one of the best-preserved Norman castles in England, with a keep about 34 metres high above the River Medway. Its cathedral, founded in 604, is the second oldest in England. Charles Dickens lived nearby and set scenes of several of his books here.", "In Kent, on the River Medway.", "England"], "POR": ["Portsmouth", "Britain's famous naval city is home to the Historic Dockyard, where you can step aboard HMS Victory, Nelson's flagship at Trafalgar, and see the Mary Rose, Henry VIII's warship raised from the sea in 1982. The writer Charles Dickens was born here in 1812.", "On the south coast, on Portsea Island.", "England"], "SOU": ["Southampton", "A major port, Southampton is where the Titanic set sail on her only voyage in April 1912. Today its docks welcome some of the largest cruise ships in the world. Parts of the medieval town walls and the Tudor House still stand in the old quarter.", "On the south coast, at the head of Southampton Water.", "England"], "WCH": ["Winchester", "Winchester was the capital of King Alfred the Great's kingdom of Wessex. Its cathedral has one of the longest naves in Europe and holds the tomb of the novelist Jane Austen. In the Great Hall hangs a huge round table linked with the legend of King Arthur.", "In Hampshire, in southern England.", "England"], "SAL": ["Salisbury", "Salisbury Cathedral has the tallest church spire in Britain, about 123 metres high, and keeps one of the four surviving original copies of Magna Carta from 1215. A few miles to the north stand the great stones of Stonehenge.", "In Wiltshire, in southern England.", "England"], "CHI": ["Chichester", "A small cathedral city near the sea, Chichester still has the Roman street plan of four main streets meeting at the Market Cross. Its cathedral is the only medieval English cathedral you can see from the sea. Nearby, Fishbourne Roman Palace has the biggest Roman house found in Britain.", "On the south coast, in West Sussex.", "England"], "BOU": ["Bournemouth", "Bournemouth is a seaside resort with miles of golden sand, a pier and gardens running down to the beach. It grew in Victorian times as a healthy place for holidays, and today is popular for surfing, sunbathing and summer festivals.", "On the south coast, in Dorset.", "England"], "BAT": ["Bath", "Bath is named after the hot springs that the Romans used for bathing. Honey-coloured Georgian crescents, like the Royal Crescent, helped make the whole city a UNESCO World Heritage Site. Jane Austen lived here and set two of her novels in its streets.", "In Somerset, in south-west England.", "England"], "BRS": ["Bristol", "A great port on the River Avon, Bristol is home to Brunel's Clifton Suspension Bridge and to the SS Great Britain, once the longest passenger ship in the world. It is the city of the street artist Banksy and of the studio that makes Wallace and Gromit.", "In south-west England, on the River Avon.", "England"], "GLO": ["Gloucester", "Gloucester has a magnificent cathedral with a fan-vaulted cloister, used as the Hogwarts corridors in the Harry Potter films. Its Victorian docks, once busy with ships carrying grain, are now home to museums, shops and restaurants.", "On the River Severn, in south-west England.", "England"], "WEL": ["Wells", "With about 12,000 people, Wells is England's smallest city. Its cathedral has a famous scissor arch and a front covered in hundreds of medieval statues. Vicars' Close, begun in the 14th century, is thought to be the oldest completely medieval street in Europe.", "In Somerset, at the foot of the Mendip Hills.", "England"], "EXE": ["Exeter", "Exeter sits by the River Exe in Devon. The Romans built walls around it, and parts still stand. The cathedral has the longest unbroken medieval stone vault in the world. The old quayside, with its warehouses, is now a lively place to eat and walk.", "In Devon, on the River Exe.", "England"], "PLY": ["Plymouth", "Plymouth Sound is a great natural harbour. Sir Francis Drake sailed from here to face the Spanish Armada in 1588, and in 1620 the Pilgrim Fathers set off for America on the Mayflower. The city is still a big base for the Royal Navy.", "On the south coast of Devon.", "England"], "TRU": ["Truro", "Truro is the only city in Cornwall. Its cathedral, finished in 1910, has three tall spires that rise above the rooftops. The county around it is known for tin mines, pasties, fishing villages and wild, sea-swept coasts.", "In Cornwall, in the far south-west of England.", "England"], "PEN": ["Penzance", "Penzance is the most westerly major town in Cornwall, looking over Mount's Bay to St Michael's Mount, an island castle reached on foot at low tide. The town gave its name to Gilbert and Sullivan's comic opera The Pirates of Penzance. Boats leave from here for the Isles of Scilly.", "In Cornwall, at the far south-west tip of England.", "England"], "STR": ["Stratford-upon-Avon", "Stratford is the birthplace of William Shakespeare, born here in 1564. Visitors can see his birthplace house, Anne Hathaway's Cottage and the Royal Shakespeare Theatre by the River Avon, where his plays are still performed every year.", "In Warwickshire, in the heart of England.", "England"], "BIR": ["Birmingham", "Birmingham is the second-largest city in the UK and was a heartland of the Industrial Revolution. It has more miles of canal than Venice. The Bullring shopping centre, the Jewellery Quarter and the Cadbury story at Bournville give it a lively mix of old and new.", "In the West Midlands, in the centre of England.", "England"], "COV": ["Coventry", "Coventry was badly bombed in 1940, and the ruins of the old cathedral were kept beside the new one as a symbol of peace. The city once made cars and bicycles, and has the legend of Lady Godiva. It was UK City of Culture in 2021.", "In the West Midlands.", "England"], "LEI": ["Leicester", "In 2012 the skeleton of King Richard III was found under a car park in Leicester, and he was reburied in the cathedral. The city has the National Space Centre, one of the biggest Diwali celebrations outside India, and the football story of Leicester City's Premier League title in 2016.", "In the East Midlands.", "England"], "NOT": ["Nottingham", "Nottingham is the home of the Robin Hood legend, with the Sheriff and nearby Sherwood Forest. Ye Olde Trip to Jerusalem, one of England's oldest inns, is built into sandstone caves under the castle. The city was also long famous for lace-making.", "In the East Midlands, near Sherwood Forest.", "England"], "LIN": ["Lincoln", "On a steep hill above the River Witham, Lincoln is dominated by its huge cathedral, which was once the tallest building in the world. Lincoln Castle holds one of the four surviving copies of Magna Carta from 1215.", "In Lincolnshire, in eastern England.", "England"], "WOR": ["Worcester", "Worcester stands on the River Severn, and its cathedral holds the tomb of King John. The Battle of Worcester in 1651 ended the English Civil War. The city also gave the world Worcestershire sauce, first made here in the 1830s.", "In the West Midlands, on the River Severn.", "England"], "DBY": ["Derby", "Derby was home to one of the first factory silk mills in the world, built on the River Derwent in the early 1700s and part of a UNESCO World Heritage Site. Today the city makes Rolls-Royce aircraft engines, and Derby County play football at Pride Park.", "In the East Midlands, on the River Derwent.", "England"], "HER": ["Hereford", "Hereford sits on the River Wye near the Welsh border. Its cathedral holds the Mappa Mundi, a huge map of the world made around 1300, the largest medieval map still in existence. The county is famous for cider orchards and Hereford cattle.", "In the West Midlands, on the River Wye near the Welsh border.", "England"], "CAM": ["Cambridge", "Cambridge is a university city with colleges dating from the 13th century. Visitors glide in punts past King's College Chapel. Isaac Newton, Charles Darwin and Stephen Hawking studied or worked here, and the structure of DNA was discovered here in 1953.", "In the east of England, on the River Cam.", "England"], "ELY": ["Ely", "Rising above the flat Fens, Ely Cathedral is called the Ship of the Fens because it can be seen from miles around. Ely was once an island in the marshes, and today is one of the smallest cities in England. Oliver Cromwell once lived here.", "In the Fens, north of Cambridge.", "England"], "NOR": ["Norwich", "Norwich was one of the richest and biggest cities in medieval England. It has a Norman castle and cathedral, cobbled lanes and Norwich Market, one of the largest outdoor markets in the UK. More than 30 medieval churches still stand in the city.", "In Norfolk, in the east of England.", "England"], "IPS": ["Ipswich", "Ipswich is a port on the River Orwell and one of the oldest continuously inhabited towns in England. Cardinal Wolsey, the powerful adviser of Henry VIII, was born here, and the painter Thomas Gainsborough worked here early in his career.", "In Suffolk, on the River Orwell.", "England"], "COL": ["Colchester", "Colchester claims to be Britain's oldest recorded town. It was the first Roman capital of Britain, called Camulodunum, and was burned by Queen Boudica in AD 61. Its Norman castle keep, built on Roman foundations, is the largest in Europe.", "In Essex, in the east of England.", "England"], "PET": ["Peterborough", "Peterborough has a magnificent Norman cathedral with a painted wooden ceiling about 800 years old, and the burial place of Catherine of Aragon, the first wife of Henry VIII. Nearby, at Flag Fen, Bronze Age people built a long wooden causeway across the marshes.", "In eastern England, on the edge of the Fens.", "England"], "CHE": ["Chester", "Chester has the most complete Roman and medieval city walls in Britain, nearly two miles long. Its Rows, shops on two levels, are unique. The city sits on the River Dee and its Roodee is one of the oldest racecourses in England.", "In Cheshire, close to the border with Wales.", "England"], "LIV": ["Liverpool", "Liverpool's docks once sent ships all over the world. The city is famous for the Beatles, who began at the Cavern Club, for its football clubs Liverpool and Everton, and for the Royal Liver Building, topped by its mythical Liver Birds.", "In north-west England, on the River Mersey.", "England"], "MAN": ["Manchester", "Manchester was the world's first industrial city, with cotton mills and canals. The first computer that stored its own programs ran here in 1948. It is also home to the football clubs United and City, and a legendary music scene from The Smiths to Oasis.", "In north-west England.", "England"], "LAN": ["Lancaster", "Lancaster stands on the River Lune, with a medieval castle that served as a prison for centuries. The city gave its name to the House of Lancaster and its red rose in the Wars of the Roses. Morecambe Bay and the Lake District are a short drive away.", "In Lancashire, on the River Lune.", "England"], "CAR": ["Carlisle", "Carlisle is the biggest city in Cumbria, near the Scottish border. Hadrian's Wall once ran just to the north, and its red sandstone castle has stood for nearly 900 years. Mary, Queen of Scots, was held there in 1568.", "In Cumbria, close to the border with Scotland.", "England"], "BLA": ["Blackpool", "A famous Victorian seaside resort, Blackpool has a tower inspired by the Eiffel Tower, built in 1894, three piers and the Pleasure Beach. Every autumn the Illuminations light up the seafront for miles.", "On the Lancashire coast, facing the Irish Sea.", "England"], "PRE": ["Preston", "Preston became a city in 2002 and grew rich with cotton mills on the River Ribble. Its Guild festival, held only once every 20 years, is one of the oldest in Britain. Preston North End, a founder of the Football League, won the very first league title in 1889.", "In Lancashire, on the River Ribble.", "England"], "SHE": ["Sheffield", "Sheffield was known as Steel City because it made knives, cutlery and stainless steel. It is built on seven hills, like Rome, and is one of the greenest cities in England. The World Snooker Championship is played at the Crucible Theatre.", "In South Yorkshire.", "England"], "LEE": ["Leeds", "Leeds is the commercial heart of Yorkshire, once rich on wool and later on banking and shops. Its Victorian arcades, like the Victoria Quarter, are full of colourful glass. The Royal Armouries museum keeps the national collection of arms and armour.", "In West Yorkshire.", "England"], "YOR": ["York", "York was founded by the Romans, then ruled by Vikings, who called it Jorvik. It is surrounded by medieval walls and dominated by the huge Gothic York Minster. The Shambles, with overhanging houses, is among the best-preserved medieval streets in Europe.", "In North Yorkshire.", "England"], "HUL": ["Hull", "Officially Kingston upon Hull, this port on the Humber estuary was the home of William Wilberforce, who campaigned against the slave trade. Hull was UK City of Culture in 2017. The Deep, a striking aquarium, stands on the waterfront.", "On the Humber estuary, in East Yorkshire.", "England"], "DUR": ["Durham", "Durham Cathedral and Castle stand together on a rocky bend of the River Wear and form a UNESCO World Heritage Site. The cathedral, begun in 1093, is one of the finest Norman buildings in Europe. Durham University, founded in 1832, is among the oldest in England.", "In north-east England, on the River Wear.", "England"], "NEW": ["Newcastle", "Newcastle upon Tyne is spanned by seven bridges, including the Tyne Bridge and the tilting Millennium Bridge. It gave its name to the saying 'carrying coals to Newcastle'. Its football fans wear black and white, and the Geordie accent is among the most famous in Britain.", "In north-east England, on the River Tyne.", "England"], "BRA": ["Bradford", "Bradford was the wool capital of the world in Victorian times, and its tall mill chimneys can still be seen. It was UK City of Culture in 2025. The city is famous for its curry houses, and the National Science and Media Museum is here.", "In West Yorkshire.", "England"], "RIP": ["Ripon", "Ripon is a small cathedral city in North Yorkshire. Every night at 9pm a horn is blown in the market square, a tradition that has continued for more than 1,100 years. Nearby Fountains Abbey is one of the largest monastic ruins in Britain and a UNESCO World Heritage Site.", "In North Yorkshire.", "England"], "SCA": ["Scarborough", "Scarborough is often called Britain's first seaside resort, after visitors came in the 1600s to drink its spa waters. It has two sandy bays divided by a headland topped by a ruined castle. The writer Anne Bronte is buried here.", "On the North Yorkshire coast.", "England"], "CDF": ["Cardiff", "Cardiff became the capital of Wales in 1955. The city has a castle with Roman walls and a Victorian fairytale tower, the Senedd on the bay, and the Principality Stadium right in the centre, where rugby fans sing. Cardiff Bay was once a huge coal-exporting port.", "On the south coast of Wales.", "Wales"], "SWA": ["Swansea", "Swansea sits on a wide curved bay at the gateway to the Gower Peninsula, the first place in Britain named an Area of Outstanding Natural Beauty. The poet Dylan Thomas was born here in 1914 and called it an ugly, lovely town.", "On the south coast of Wales, by Swansea Bay.", "Wales"], "STD": ["St Davids", "St Davids, named after the patron saint of Wales, is the smallest city in Britain. Its cathedral lies in a hollow next to the ruins of the Bishop's Palace, inside the Pembrokeshire Coast National Park. Cliffs, beaches and seals nearby make it a favourite with walkers.", "In Pembrokeshire, in the far south-west of Wales.", "Wales"], "CAE": ["Caernarfon", "Caernarfon has one of the finest castles in the world, begun by Edward I in 1283. Its many-sided towers copy the walls of Constantinople. In 1969 Prince Charles was invested here as Prince of Wales. Snowdon, the highest mountain in Wales, is nearby.", "On the north-west coast of Wales.", "Wales"], "CON": ["Conwy", "Conwy is a walled town around its castle, built by Edward I in the 1280s. The town walls have 21 towers. On the quay stands the Smallest House in Great Britain, and behind the town rise the mountains of Snowdonia.", "On the north coast of Wales, at the edge of Snowdonia.", "Wales"], "NWP": ["Newport", "Newport sits on the River Usk. Its Transporter Bridge, opened in 1906, is one of the few of its kind still working in the world. The Roman fort of Caerleon is nearby, and the Celtic Manor hosted the Ryder Cup golf match in 2010.", "On the south coast of Wales, on the River Usk.", "Wales"], "WRE": ["Wrexham", "Wrexham became a city in 2022. Its football club, one of the oldest in the world, plays at the Racecourse Ground. Close by, the Pontcysyllte Aqueduct carries a canal 38 metres above the River Dee, and Chirk Castle guards the border.", "In north-east Wales, close to the English border.", "Wales"], "ABY": ["Aberystwyth", "Aberystwyth is a seaside town on Cardigan Bay in mid-Wales. Its university, founded in 1872, was the first in Wales, and the National Library of Wales stands on a hill above the town. The Cliff Railway climbs Constitution Hill for sea views.", "On the west coast of Wales, on Cardigan Bay.", "Wales"], "BRE": ["Brecon", "Brecon lies at the edge of the Brecon Beacons National Park, now also called Bannau Brycheiniog. Pen y Fan, the highest peak in southern Britain at 886 metres, is nearby. The town has a small cathedral and a famous jazz festival every summer.", "In mid-Wales, on the edge of the Brecon Beacons.", "Wales"], "EDI": ["Edinburgh", "The capital of Scotland, Edinburgh is built on ancient volcanic rock topped by Edinburgh Castle. The Royal Mile runs down to the Palace of Holyroodhouse. Every August the Fringe becomes the biggest arts festival in the world, and J. K. Rowling wrote early Harry Potter chapters in its cafes.", "In south-east Scotland, on the Firth of Forth.", "Scotland"], "GLA": ["Glasgow", "Glasgow is the biggest city in Scotland, built on the River Clyde. It grew rich on shipbuilding and trade, and is famous for the buildings of Charles Rennie Mackintosh. Its great free museums, like Kelvingrove, and a lively music scene draw visitors.", "In west-central Scotland, on the River Clyde.", "Scotland"], "STI": ["Stirling", "Stirling is called the Gateway to the Highlands. Its hilltop castle was a favourite of Scottish kings and queens. Nearby, William Wallace beat the English at Stirling Bridge in 1297, and Robert the Bruce won at Bannockburn in 1314.", "In central Scotland, on the River Forth.", "Scotland"], "SAN": ["St Andrews", "St Andrews is the home of golf, and the Old Course has been played for about 600 years. The ruins of its cathedral, once the largest in Scotland, stand by the sea. The oldest university in Scotland, founded in 1413, is here.", "On the east coast of Scotland, in Fife.", "Scotland"], "PER": ["Perth", "Perth sits on the River Tay and is known as the Fair City and the gateway to the Highlands. For centuries it was a place of Scottish kings, and nearby Scone Palace is where they were crowned on the Stone of Destiny.", "In central Scotland, on the River Tay.", "Scotland"], "DUN": ["Dundee", "Dundee is the City of Discovery, named after Captain Scott's ship RRS Discovery, built here. It was once famous for jute, jam and journalism, and it publishes the comics The Beano and The Dandy. V&A Dundee is Scotland's design museum.", "On the east coast of Scotland, on the Firth of Tay.", "Scotland"], "ABE": ["Aberdeen", "Aberdeen is the Granite City, whose grey buildings sparkle in the sun. It became the oil capital of Europe thanks to the North Sea. It has a busy harbour, golden beaches and a university founded in 1495.", "On the north-east coast of Scotland.", "Scotland"], "INV": ["Inverness", "Inverness is the capital of the Scottish Highlands, on the River Ness near the Moray Firth. Loch Ness, home of the legendary monster, lies a few miles away. Culloden Moor, where the last battle on British soil was fought in 1746, is close.", "In the north of Scotland, on the River Ness.", "Scotland"], "OBA": ["Oban", "Oban is a harbour town on the west coast of Scotland, known as the Gateway to the Isles. Ferries leave from here for Mull, Iona and the Outer Hebrides. Above the town stands McCaig's Tower, a round Victorian folly built to give work to local people.", "On the west coast of Scotland.", "Scotland"], "FTW": ["Fort William", "Fort William stands at the foot of Ben Nevis, the highest mountain in the British Isles at 1,345 metres. The Caledonian Canal starts nearby, and the Jacobite steam train, seen in the Harry Potter films, crosses the Glenfinnan Viaduct.", "In the Highlands, on the west coast of Scotland.", "Scotland"], "AYR": ["Ayr", "Ayr is a seaside town on the Firth of Clyde. Robert Burns, Scotland's national poet, was born in nearby Alloway in 1759, and every year on 25 January Scots celebrate Burns Night with haggis, songs and poems. The town also has a famous racecourse.", "On the south-west coast of Scotland, on the Firth of Clyde.", "Scotland"], "ELG": ["Elgin", "Elgin is a historic market town in Moray, in north-east Scotland. The ruins of its cathedral, once called the Lantern of the North, stand where a great church was burned in 1390. The area is the heart of Speyside whisky country.", "In Moray, in north-east Scotland.", "Scotland"], "BEL": ["Belfast", "Belfast is the capital of Northern Ireland. The Titanic was built in its shipyard, and the Titanic Belfast museum stands on the site. The huge yellow cranes Samson and Goliath are city landmarks, and the Giant's Causeway is an easy day trip.", "On the east coast of Northern Ireland, on the River Lagan.", "Northern Ireland"], "ARM": ["Armagh", "Armagh is a quiet cathedral city and the religious capital of all Ireland, with two cathedrals named after St Patrick. It has an observatory and planetarium, and is called the Orchard County for its apple blossom.", "In the south of Northern Ireland.", "Northern Ireland"], "DER": ["Derry/Londonderry", "Derry is the only completely walled city in Ireland, and you can still walk all the way around its 17th-century walls. The Peace Bridge links the two banks of the River Foyle. The city was UK City of Culture in 2013.", "In the north-west of Northern Ireland, on the River Foyle.", "Northern Ireland"], "NRY": ["Newry", "Newry lies near the border between Northern Ireland and the Republic of Ireland, on the Newry Canal, opened in 1742 and one of the first major canals in the British Isles. It became a city in 2002. The Mourne Mountains rise nearby.", "In the south of Northern Ireland, close to the border with the Republic.", "Northern Ireland"], "BNG": ["Bangor", "Bangor is a seaside city on Belfast Lough, about 13 miles east of Belfast, which gained city status in 2022. Its busy marina is a favourite for sailors. In the 6th century its abbey was an important centre of learning, and monks travelled from here across Europe.", "On the coast of Northern Ireland, on Belfast Lough.", "Northern Ireland"]};
+const MAP = {"vb": [0, 0, 423, 515], "nat": {"England": "M286.2,175.3 299.2,201.6 305.7,218.4 307.3,224.0 313.8,235.2 331.7,246.4 338.2,258.7 348.6,268.8 354.5,297.9 349.6,299.6 362.6,330.4 364.2,341.6 367.5,333.2 393.5,334.3 408.1,352.8 408.1,361.2 395.1,389.2 388.6,397.6 380.5,414.4 374.0,412.7 367.5,420.0 396.7,421.1 395.1,435.1 382.8,446.9 370.7,450.8 359.3,457.5 346.7,452.5 325.2,458.1 317.1,453.6 305.7,453.6 291.0,458.1 271.5,467.6 255.3,458.1 232.5,487.2 216.3,478.8 198.4,481.6 182.1,500.6 165.8,494.5 175.6,481.6 190.2,467.6 203.2,441.3 214.6,439.6 217.9,431.2 239.0,431.2 254.3,422.8 266.7,411.6 265.0,408.8 263.4,394.8 253.7,375.2 250.4,358.4 248.8,341.6 253.7,324.8 250.4,313.6 252.0,308.0 252.0,294.0 252.0,282.8 258.5,270.5 247.1,268.8 234.1,246.4 237.4,235.2 252.0,219.5 250.4,215.6 266.7,201.6 278.0,182.0Z", "Wales": "M265.0,408.8 247.1,420.0 222.8,411.6 213.0,411.6 198.4,406.0 187.0,403.2 178.9,393.1 189.6,386.4 198.4,380.8 217.9,364.0 219.5,347.2 208.1,336.0 198.4,341.6 212.4,322.6 200.0,313.0 208.1,306.9 227.6,311.9 237.4,312.5 250.4,313.6 253.7,324.8 248.8,341.6 250.4,358.4 253.7,375.2 263.4,394.8Z", "Scotland": "M252.0,219.5 234.1,226.8 219.5,229.6 208.1,238.0 193.5,239.1 187.0,221.2 200.0,193.2 191.9,176.4 196.7,165.2 178.9,173.6 169.1,201.6 162.6,201.6 164.2,176.4 172.4,156.8 169.1,140.0 149.6,121.5 159.3,106.4 152.8,89.6 165.8,72.8 165.8,56.0 182.1,39.2 188.6,15.1 211.4,19.6 240.6,12.9 251.4,14.6 250.4,28.0 232.5,44.8 221.1,58.8 214.6,72.8 234.1,68.9 256.9,68.3 282.9,68.3 293.3,78.4 283.6,98.6 276.4,123.2 271.5,123.2 260.2,137.2 266.7,145.6 253.7,142.8 240.6,159.6 253.7,162.4 269.9,162.4 286.2,175.3 278.0,182.0 266.7,201.6 250.4,215.6Z", "Northern Ireland": "M159.3,238.0 162.6,226.8 154.5,207.2 135.0,207.2 113.8,218.4 108.9,235.2 110.6,246.4 100.8,254.8 120.3,266.0 146.3,268.8 152.8,271.6 172.4,252.0 172.4,240.8Z"}, "irl": "M152.8,271.6 152.8,310.8 144.7,375.2 123.6,378.0 81.3,397.6 26.0,408.8 13.0,380.8 42.3,352.8 52.0,319.2 22.8,302.4 29.3,263.2 74.8,252.0 81.3,235.2 91.1,207.2 113.8,201.6 135.0,207.2 154.5,207.2 162.6,226.8 172.4,240.8 172.4,252.0Z", "pts": {"LON": [347.3, 413.8], "WIN": [331.4, 415.5], "OXF": [310.2, 400.4], "CAN": [386.3, 426.7], "BRI": [346.7, 452.5], "DOV": [393.8, 435.1], "SAB": [340.2, 400.4], "ROC": [367.5, 420.6], "POR": [315.8, 453.6], "SOU": [305.7, 448.0], "WCH": [308.6, 439.0], "SAL": [293.0, 438.5], "CHI": [325.8, 451.4], "BOU": [290.1, 458.1], "BAT": [274.5, 421.1], "BRS": [267.0, 417.2], "GLO": [278.4, 394.2], "WEL": [265.0, 430.6], "EXE": [236.4, 458.1], "PLY": [216.6, 477.7], "TRU": [187.0, 483.8], "PEN": [171.1, 491.7], "STR": [295.6, 375.8], "BIR": [289.7, 359.5], "COV": [302.1, 363.4], "LEI": [314.5, 350.6], "NOT": [313.8, 333.2], "LIN": [333.6, 317.5], "WOR": [279.0, 375.8], "DBY": [303.1, 334.9], "HER": [262.8, 383.0], "CAM": [355.1, 374.6], "ELY": [359.7, 364.0], "NOR": [393.5, 351.1], "IPS": [388.9, 383.0], "COL": [380.5, 392.6], "PET": [343.4, 354.5], "CHE": [257.2, 319.8], "LIV": [254.3, 307.4], "MAN": [278.4, 303.5], "LAN": [260.2, 271.6], "CAR": [255.9, 224.6], "BLA": [252.0, 284.5], "PRE": [263.4, 287.8], "SHE": [303.4, 309.1], "LEE": [300.8, 285.6], "YOR": [316.1, 276.6], "HUL": [340.2, 289.0], "DUR": [300.2, 230.7], "NEW": [298.9, 220.1], "BRA": [294.0, 285.6], "RIP": [301.8, 266.6], "SCA": [338.2, 258.7], "CDF": [247.8, 415.5], "SWA": [223.1, 407.7], "STD": [179.8, 393.1], "CAE": [212.4, 322.6], "CON": [226.7, 314.7], "NWP": [253.7, 409.4], "WRE": [254.0, 327.6], "ABY": [218.5, 363.4], "BRE": [241.0, 389.2], "EDI": [247.5, 165.2], "GLA": [213.0, 170.2], "STI": [223.1, 155.7], "SAN": [260.2, 143.4], "PER": [239.7, 140.0], "DUN": [254.6, 136.6], "ABE": [283.2, 98.0], "INV": [214.0, 79.5], "OBA": [173.3, 139.4], "FTW": [184.7, 116.5], "AYR": [200.6, 192.6], "ELG": [243.2, 70.0], "BEL": [158.4, 240.8], "ARM": [135.0, 254.8], "DER": [113.2, 219.0], "NRY": [145.0, 264.3], "BNG": [166.8, 237.4]}};
+function mapSvg(sig, ri){
+  const c = CITY[sig], pt = MAP.pts[sig];
+  let s = `<path d="${MAP.irl}" fill="#dfe6ec" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>`;
+  for (const [n, d] of Object.entries(MAP.nat)) s += `<path d="${d}" fill="${n === c[3] ? '#f2c97a' : '#c9d3de'}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>`;
+  REGIONS[ri].p.forEach(([nm, sg]) => { const q = MAP.pts[sg]; if (q && sg !== sig) s += `<circle cx="${q[0]}" cy="${q[1]}" r="4.5" fill="#1d2433" fill-opacity=".6" stroke="#fff" stroke-width="1.5"/>`; });
+  s += pt ? `<circle class="ping" cx="${pt[0]}" cy="${pt[1]}" r="14" fill="none" stroke="#e2573b" stroke-width="4"/><circle cx="${pt[0]}" cy="${pt[1]}" r="9" fill="#e2573b" stroke="#fff" stroke-width="3.5"/>` : '';
+  return `<svg viewBox="${MAP.vb.join(' ')}" role="img" aria-label="Location on the map of the United Kingdom">${s}</svg>`;
+}
+function cityCard(idx){
+  const pv = PROV[idx], r = REGIONS[pv.ri], c = CITY[pv.sig];
+  if (!c) return '';
+  return `<div class="cityinfo"><div class="map">${mapSvg(pv.sig, pv.ri)}</div>
+    <div class="txt"><small>${c[3]} · ${r.n}</small><b>${c[0]}</b><p>${c[1]}</p><p class="where">${c[2]} The pin marks the city, the dark dots are the other cities of this stage.</p></div></div>`;
+}
+
+// flatten provinces into a linear path
+const PROV = []; REGIONS.forEach((r, ri) => { r.start = PROV.length; r.p.forEach(([name, sig], pi) => PROV.push({ri, pi, name, sig})); });
+const HINT = 25, ROCKET = 60, METER = 6, METER_REWARD = 20;
+const chestReward = ri => 100 + ri * 10;
+const BONUS_REWARD = 150;
+
+// ---------- state ----------
+const KEY = 'britainwords-max-v1';
+let S = {level:0, coins:120, meter:0, dailyDone:{}, chests:{}, bonusDone:{}, cur_main:null, cur_daily:null, cur_bonus:null, seenHelp:false};
+try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch(e) {}
+if (S.ver !== 3) {
+  // new province path: keep coins, restart the trail from the first province
+  if (S.ver !== undefined || S.level) S.coins = Math.max(S.coins, 120);
+  S.level = 0; S.cur_main = null; S.cur_daily = null; S.cur_bonus = null; S.chests = {}; S.bonusDone = {}; S.ver = 3;
+}
+if (window.claude?.hot?.data?.S && window.claude.hot.data.S.ver === 3) S = window.claude.hot.data.S;
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
+window.claude?.hot?.snapshot?.(() => ({S}));
+
+const $ = s => document.querySelector(s);
+const total = PROV.length;
+const regionDone = ri => S.level >= REGIONS[ri].start + REGIONS[ri].p.length;
+
+function todayKey(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function dailyIndex(){ const d = new Date(); const start = Date.UTC(2026,0,1); const t = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); return Math.floor((t-start)/864e5) % DATA.daily.length; }
+
+function setSky(c){ const a = $('#app'); a.style.setProperty('--sky1', c[0]); a.style.setProperty('--sky2', c[1]); document.body.style.background = c[0]; }
+function updateCoins(){ document.querySelectorAll('.coinval').forEach(e => e.textContent = S.coins); }
+
+function show(id){ ['home','trail','region','game'].forEach(s => $('#'+s).hidden = s !== id); updateCoins(); if (id==='home') refreshHome(); }
+
+function drawProgress(){
+  const el = $('#ukmap'); if (!el) return;
+  let s = `<path d="${MAP.irl}" fill="rgba(255,255,255,.22)" stroke="#fff" stroke-opacity=".6" stroke-width="1.5" stroke-linejoin="round"/>`;
+  for (const d of Object.values(MAP.nat)) s += `<path d="${d}" fill="rgba(255,255,255,.55)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>`;
+  PROV.forEach((pv, i) => { const q = MAP.pts[pv.sig]; if (!q) return;
+    if (i < S.level) s += `<circle cx="${q[0]}" cy="${q[1]}" r="8" fill="#f2b632" stroke="#fff" stroke-width="2.5"/>`;
+    else if (i === S.level) s += `<circle class="ping" cx="${q[0]}" cy="${q[1]}" r="14" fill="none" stroke="#e2573b" stroke-width="4"/><circle cx="${q[0]}" cy="${q[1]}" r="8" fill="#e2573b" stroke="#fff" stroke-width="2.5"/>`;
+    else s += `<circle cx="${q[0]}" cy="${q[1]}" r="3.5" fill="#1d2433" fill-opacity=".35"/>`; });
+  el.innerHTML = `<svg viewBox="${MAP.vb.join(' ')}" role="img" aria-label="Map of the cities you have completed">${s}</svg><small>${Math.min(S.level, total)} of ${total} cities completed</small>`;
+}
+function refreshHome(){
+  drawProgress();
+  const done = S.level >= total;
+  const pv = PROV[Math.min(S.level, total-1)];
+  setSky(REGIONS[pv.ri].c);
+  $('#playBtn').innerHTML = done ? 'Tour of Britain complete!' : `Play <small>${pv.name} · ${REGIONS[pv.ri].n}</small>`;
+  const dd = S.dailyDone[todayKey()];
+  $('#dailyBtn').innerHTML = `Daily challenge <small>${dd ? 'completed ✓' : '+50 coins'}</small>`;
+  const nc = Object.keys(S.chests).length;
+  refreshHunt();
+  $('#albumBtn').innerHTML = `Postcard album <small>${nc} of ${REGIONS.length}</small>`;
+}
+
+// ---------- letter hunt (timed event) ----------
+const HUNT_THEMES = [
+  {t:"The living room", w:["sofa", "lamp", "carpet", "mirror", "fireplace"]},
+  {t:"The kitchen", w:["oven", "kettle", "spoon", "teapot", "cupboard"]},
+  {t:"The beach", w:["sand", "shell", "bucket", "towel", "deckchair"]},
+  {t:"The pub", w:["barrel", "pint", "darts", "fire", "stool"]},
+  {t:"The garden", w:["rose", "spade", "pumpkin", "lawn", "hedge"]},
+  {t:"The harbour", w:["boat", "anchor", "lighthouse", "seagull", "rope"]},
+  {t:"The workshop", w:["hammer", "saw", "nail", "bench", "chisel"]},
+  {t:"The woods", w:["acorn", "squirrel", "mushroom", "path", "moss"]},
+];
+const TOKENS = {main:3, bonus:5, daily:4};
+function rng(seed){ return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; }
+const HUNTS = (() => {
+  const r = rng(20261023), out = [];
+  let t = new Date(2026, 9, 23).getTime();
+  const order = HUNT_THEMES.map((_, i) => i);
+  for (let k = 0; k < 150; k++){
+    const days = 1 + Math.floor(r() * 14);
+    const end = t + days * 864e5;
+    const th = HUNT_THEMES[(k * 3 + Math.floor(r() * 2)) % HUNT_THEMES.length];
+    const nw = Math.min(5, 2 + Math.floor(days / 3));
+    const words = th.w.slice(0, nw);
+    out.push({id:k, start:t, end, days, theme:th.t, words, total: words.join('').length});
+    t = end + (1 + Math.floor(r() * 5)) * 864e5;
+  }
+  return out;
+})();
+function currentHunt(){ const n = Date.now(); return HUNTS.find(e => e.start <= n && n < e.end) || null; }
+function nextHunt(){ const n = Date.now(); return HUNTS.find(e => e.start > n) || null; }
+function huntState(e){
+  if (!S.hunt || S.hunt.id !== e.id) S.hunt = {id:e.id, tok:{}, count:0, ms:[]};
+  return S.hunt;
+}
+function fmtLeft(ms){
+  const m = Math.max(0, Math.floor(ms / 6e4)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
+  return (d ? d + 'd ' : '') + String(h).padStart(2,'0') + 'h ' + String(mm).padStart(2,'0') + 'm';
+}
+const huntMs = e => [Math.round(e.total/3), Math.round(e.total*2/3), e.total];
+const huntRew = e => [40 + e.days*5, 60 + e.days*8, 150 + e.days*20];
+function hashStr(s){ let h = 2166136261; for (const c of s){ h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function tokenCells(){
+  const e = currentHunt(); if (!e || !G || G.view) return [];
+  const keys = [...G.cells.keys()].sort();
+  const r = rng(hashStr(e.id + ':' + G.mode + ':' + G.idx + ':' + (G.mode==='daily'?todayKey():'')));
+  const out = [];
+  while (out.length < Math.min(TOKENS[G.mode], keys.length)){ const k = keys[Math.floor(r()*keys.length)]; if (!out.includes(k)) out.push(k); }
+  return out;
+}
+function tokKey(k){ return G.mode + ':' + G.idx + ':' + (G.mode==='daily'?todayKey():'') + ':' + k; }
+function collectToken(k){
+  const e = currentHunt(); if (!e) return;
+  const st = huntState(e);
+  if (st.tok[tokKey(k)] || st.count >= e.total) return;
+  st.tok[tokKey(k)] = 1; st.count++;
+  const el = G.cells.get(k).el; el.classList.remove('tok'); el.classList.add('got');
+  const ms = huntMs(e), rw = huntRew(e);
+  let msg = `Letter hunt: ${st.count}/${e.total}`;
+  ms.forEach((m, i) => { if (st.count >= m && !st.ms.includes(i)){ st.ms.push(i); S.coins += rw[i]; msg = i === 2 ? `Hunt complete! +${rw[i]} coins` : `Milestone reached: +${rw[i]} coins`; updateCoins(); } });
+  save();
+  setTimeout(() => setPreview('', null, msg), 700);
+}
+function huntCard(){
+  const e = currentHunt();
+  if (!e){
+    const nx = nextHunt();
+    openCard(`<h2>Letter hunt</h2><p>No hunt in progress.${nx ? ` The next one starts in <b>${fmtLeft(nx.start - Date.now())}</b>.` : ''}</p><button class="btn" type="button" data-act="close">Close</button>`);
+    return;
+  }
+  const st = huntState(e), ms = huntMs(e), rw = huntRew(e);
+  let left = st.count;
+  const words = e.words.map(w => {
+    const n = Math.max(0, Math.min(w.length, left)); left -= w.length;
+    return `<div class="hword ${n===w.length?'done':''}">${[...w].map((ch,i)=>`<i class="${i<n?'on':''}">${i<n?ch:''}</i>`).join('')}</div>`;
+  }).join('');
+  const pct = st.count / e.total * 100;
+  $('#card').classList.add('hunt-card');
+  openCard(`<h2>Letter hunt</h2>
+    <div class="hunt-time" id="huntTime">⏱ ${fmtLeft(e.end - Date.now())}</div>
+    <div class="hunt-theme">${e.theme}</div>
+    <p>During the hunt some squares in the grids carry a golden dot. When you uncover them you collect a letter and complete the hidden words.</p>
+    <div class="hwords">${words}</div>
+    <div class="hbar"><div class="fill" style="width:${pct}%"></div>
+      <span class="ms ${st.ms.includes(0)?'ok':''}" style="left:${ms[0]/e.total*100}%">${st.ms.includes(0)?'✓':'+'+rw[0]}</span>
+      <span class="ms ${st.ms.includes(1)?'ok':''}" style="left:${ms[1]/e.total*100}%">${st.ms.includes(1)?'✓':'+'+rw[1]}</span>
+      <span class="lbl">${st.count}/${e.total}</span><span class="gift ${st.ms.includes(2)?'ok':''}"></span></div>
+    <p class="hunt-rew">Prizes: ${rw[0]} and ${rw[1]} coins at the milestones, ${rw[2]} coins when the hunt is complete. Length: ${e.days} ${e.days===1?'day':'days'}.</p>
+    ${st.count >= e.total ? '<p><b>Hunt complete!</b> Come back for the next one.</p>' : '<button class="btn primary" type="button" data-act="main">Play now</button>'}
+    <button class="btn" type="button" data-act="close">Close</button>`);
+}
+setInterval(() => { const el = document.getElementById('huntTime'), e = currentHunt(); if (el && e) el.textContent = '⏱ ' + fmtLeft(e.end - Date.now()); if (!$('#home').hidden) refreshHunt(); }, 30000);
+function refreshHunt(){
+  const e = currentHunt(), b = $('#huntBtn');
+  b.hidden = false;
+  if (e){ const st = huntState(e); b.innerHTML = `Letter hunt <small>${st.count}/${e.total} · ${fmtLeft(e.end - Date.now())}</small>`; }
+  else { const nx = nextHunt(); b.innerHTML = `Letter hunt <small>${nx ? 'in ' + fmtLeft(nx.start - Date.now()) : 'finished'}</small>`; }
+}
+
+// ---------- game ----------
+let G = null;
+function cellKey(r,c){ return r+','+c; }
+
+function isDone(mode, idx){ return mode === 'main' ? idx < S.level : mode === 'bonus' ? !!S.bonusDone[idx] : false; }
+function startLevel(mode, idx, opt = {}){
+  const lv = mode === 'daily' ? DATA.daily[idx] : mode === 'bonus' ? DATA.bonus[idx] : DATA.levels[idx];
+  const cells = new Map();
+  lv.words.forEach(([w,r,c,d], wi) => {
+    for (let i=0;i<w.length;i++){
+      const rr = d==='V'? r+i : r, cc = d==='H'? c+i : c, k = cellKey(rr,cc);
+      if (!cells.has(k)) cells.set(k, {ch:w[i], r:rr, c:cc});
+    }
+  });
+  winShown = false;
+  G = {mode, idx, lv, cells, revealed:new Set(), hinted:new Set(), found:new Set(), bonusFound:[], letters: lv.letters.split(''), view: !!opt.view, noSave: isDone(mode, idx)};
+  if (G.view){ cells.forEach((_, k) => G.revealed.add(k)); lv.words.forEach((_, wi) => G.found.add(wi)); }
+  const cur = S['cur_'+mode];
+  if (!G.noSave && cur && cur.idx===idx && (mode!=='daily' || cur.day===todayKey())){
+    cur.revealed.forEach(k => G.revealed.add(k)); (cur.hinted||[]).forEach(k=>G.hinted.add(k));
+    cur.found.forEach(i => G.found.add(i)); G.bonusFound = cur.bonusFound.slice();
+    if (cur.letters) G.letters = cur.letters.split('');
+  }
+  if (mode === 'daily'){
+    setSky(['#3d2f5c','#e9926b']); $('#gTitle').textContent = 'Daily challenge';
+    $('#gSub').textContent = new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  } else if (mode === 'bonus'){
+    const r = REGIONS[idx]; setSky(['#5a3a12', r.c[1]]);
+    $('#gTitle').textContent = 'Bonus: ' + r.n; $('#gSub').textContent = `Bonus level · ${lv.words.length} words`;
+  } else {
+    const pv = PROV[idx], r = REGIONS[pv.ri]; setSky(r.c);
+    $('#gTitle').textContent = pv.name; $('#gSub').textContent = `${r.n} · ${pv.pi+1}/${r.p.length}`;
+  }
+  if (G.view) $('#gSub').textContent = 'Grid completed ✓';
+  else if (G.noSave) $('#gSub').textContent += ' · replay';
+  $('#game').classList.toggle('viewmode', G.view);
+  show('game');
+  buildGrid(); buildWheel(); updateBonusUI(); setPreview('');
+  if (G.view) $('#preview').innerHTML = `<button class="btn replay" type="button" data-replay>Play again</button>`;
+  persistCur();
+}
+
+function persistCur(){
+  if (!G || G.view || G.noSave) return;
+  S['cur_'+G.mode] = {idx:G.idx, day: G.mode==='daily'? todayKey(): null, revealed:[...G.revealed], hinted:[...G.hinted], found:[...G.found], bonusFound:G.bonusFound, letters:G.letters.join('')};
+  save();
+}
+
+function buildGrid(){
+  const grid = $('#grid'), board = $('#board');
+  grid.innerHTML = '';
+  const {h,w} = G.lv;
+  const bw = board.clientWidth, bh = board.clientHeight - 16;
+  const gap = Math.max(h,w) > 8 ? 3 : 4;
+  const size = Math.max(20, Math.min(56, Math.floor((bw - gap*(w-1))/w), Math.floor((bh - gap*(h-1))/h)));
+  grid.style.width = (w*size + (w-1)*gap)+'px'; grid.style.height = (h*size + (h-1)*gap)+'px';
+  const toks = tokenCells(), he = currentHunt(), huntSt = he ? huntState(he) : null;
+  for (const [k, cell] of G.cells){
+    const el = document.createElement('div');
+    el.className = 'cell';
+    el.style.cssText = `left:${cell.c*(size+gap)}px;top:${cell.r*(size+gap)}px;width:${size}px;height:${size}px;font-size:${Math.round(size*.56)}px`;
+    cell.el = el;
+    if (toks.includes(k) && !(huntSt && huntSt.tok[tokKey(k)])) el.classList.add('tok');
+    grid.appendChild(el);
+    if (G.revealed.has(k)) reveal(k, false);
+  }
+}
+
+function reveal(k, animate=true, hint=false){
+  const cell = G.cells.get(k);
+  G.revealed.add(k);
+  if (hint) G.hinted.add(k);
+  if (!cell.el.classList.contains('on')){
+    cell.el.classList.add('on');
+    if (G.hinted.has(k)) cell.el.classList.add('hint');
+    cell.el.innerHTML = `<span style="${animate?'':'animation:none'}">${cell.ch}</span>`;
+  }
+  if (cell.el.classList.contains('tok')) collectToken(k);
+}
+
+function wordCells(wi){ const [w,r,c,d] = G.lv.words[wi]; return [...w].map((_,i)=> cellKey(d==='V'?r+i:r, d==='H'?c+i:c)); }
+function checkWordsComplete(){ G.lv.words.forEach((_, wi) => { if (!G.found.has(wi) && wordCells(wi).every(k => G.revealed.has(k))) G.found.add(wi); }); }
+
+function submit(word){
+  if (word.length < 3){ setPreview(''); return; }
+  const wi = G.lv.words.findIndex(x => x[0] === word);
+  if (wi >= 0){
+    const ks = wordCells(wi);
+    if (G.found.has(wi)){
+      setPreview(word, 'dup', 'Already found');
+      ks.forEach(k => { const el = G.cells.get(k).el; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); });
+      return;
+    }
+    G.found.add(wi);
+    ks.forEach((k,i) => setTimeout(()=>reveal(k), i*70));
+    ks.forEach(k => G.revealed.add(k));
+    setPreview(word, 'ok');
+    checkWordsComplete(); persistCur();
+    setTimeout(checkWin, ks.length*70 + 400);
+    return;
+  }
+  if (G.lv.bonus.includes(word)){
+    if (G.bonusFound.includes(word)){ setPreview(word, 'dup', 'Bonus already found'); return; }
+    G.bonusFound.push(word); S.meter++;
+    let msg = 'Bonus word!';
+    if (S.meter >= METER){ S.meter = 0; S.coins += METER_REWARD; msg = `Bonus complete: +${METER_REWARD} coins`; updateCoins(); }
+    setPreview(word, 'bonus', msg); updateBonusUI(); persistCur();
+    return;
+  }
+  setPreview(word, 'bad');
+}
+
+function postcard(ri){
+  const r = REGIONS[ri];
+  return `<div class="postcard" style="background:linear-gradient(135deg,${r.c[0]},${r.c[1]})"><span class="stamp">${ri+1}</span><small>Postcard from stage</small><b>${r.n}</b><p>${r.f}</p></div>`;
+}
+
+let winShown = false;
+function checkWin(){
+  if (!G || G.revealed.size < G.cells.size || winShown) return;
+  winShown = true;
+  let reward = 0, html;
+  const bonusLine = `<p>Bonus words: ${G.bonusFound.length} of ${G.lv.bonus.length}</p>`;
+  if (G.mode === 'daily'){
+    const first = !S.dailyDone[todayKey()];
+    reward = first ? 50 : 0;
+    S.dailyDone[todayKey()] = true;
+    html = `<h2>Challenge won!</h2>${reward?`<div class="reward"><i class="coin"></i>+${reward}</div>`:'<p>Come back tomorrow for a new challenge.</p>'}${bonusLine}
+      <button class="btn primary" type="button" data-act="home">Back to the menu</button>`;
+  } else if (G.mode === 'bonus'){
+    const ri = G.idx, first = !S.bonusDone[ri];
+    reward = first ? BONUS_REWARD : 0; S.bonusDone[ri] = true;
+    const nextRi = ri + 1;
+    html = `<span class="bonus-tag">Bonus level</span><h2>${REGIONS[ri].n} conquered!</h2>
+      ${reward?`<div class="reward"><i class="coin"></i>+${reward}</div>`:''}${bonusLine}
+      ${nextRi < REGIONS.length && S.level < total ? `<button class="btn primary" type="button" data-act="main">Next stage: ${REGIONS[Math.min(PROV[Math.min(S.level,total-1)].ri, REGIONS.length-1)].n}</button>` : ''}
+      <button class="btn" type="button" data-act="region:${ri}">Back to the stage</button>`;
+  } else {
+    const pv = PROV[G.idx], r = REGIONS[pv.ri];
+    const firstTime = G.idx >= S.level;
+    reward = firstTime ? 10 + Math.floor(G.idx/10)*2 : 0;
+    if (firstTime) S.level = G.idx + 1;
+    const lastOfRegion = pv.pi === r.p.length - 1;
+    const next = G.idx + 1 < total ? PROV[G.idx+1] : null;
+    if (lastOfRegion && !S.chests[pv.ri]){
+      const cr = chestReward(pv.ri);
+      S.chests[pv.ri] = true; reward += cr;
+      html = `<h2>Stage complete!</h2><div class="chest" aria-hidden="true"></div>
+        <p>You opened the treasure chest of ${r.n}: <b>+${cr}</b> coins, and you unlocked the bonus level.</p>
+        <div class="reward"><i class="coin"></i>+${reward}</div>
+        ${cityCard(G.idx)}
+        ${postcard(pv.ri)}
+        <button class="btn primary" type="button" data-act="bonus:${pv.ri}">Play the bonus level</button>
+        ${next ? `<button class="btn" type="button" data-act="next">Next stage: ${REGIONS[next.ri].n}</button>` : ''}
+        <button class="btn" type="button" data-act="home">Menu</button>`;
+    } else {
+      html = `<h2>${['Well done!','Great!','Perfect!','Brilliant!'][G.idx%4]}</h2>
+        <p>${pv.name} completed.</p>
+        ${reward?`<div class="reward"><i class="coin"></i>+${reward}</div>`:''}
+        ${cityCard(G.idx)}${bonusLine}
+        ${next ? `<button class="btn primary" type="button" data-act="next">${next.ri !== pv.ri ? `Next stage: ${REGIONS[next.ri].n}` : `Next city: ${next.name}`}</button>` : `<p>You have completed the word tour of Britain!</p>`}
+        <button class="btn" type="button" data-act="region:${pv.ri}">Cities of ${r.n}</button>`;
+    }
+  }
+  S.coins += reward; if (!G.noSave) S['cur_'+G.mode] = null; save(); updateCoins();
+  openCard(html);
+}
+
+function hint(n, cost){
+  if (S.coins < cost){ setPreview('', null, 'Not enough coins'); return; }
+  const hidden = [...G.cells.keys()].filter(k => !G.revealed.has(k));
+  if (!hidden.length) return;
+  S.coins -= cost; updateCoins();
+  for (let i=0;i<n && hidden.length;i++){
+    const k = hidden.splice(Math.floor(Math.random()*hidden.length),1)[0];
+    G.revealed.add(k); G.hinted.add(k);
+    setTimeout(()=>reveal(k, true, true), i*120);
+  }
+  checkWordsComplete(); persistCur();
+  setTimeout(checkWin, n*120+300);
+}
+
+function updateBonusUI(){
+  $('#bonusCount').textContent = G ? G.bonusFound.length : 0;
+  $('#meter').style.width = (S.meter/METER*100)+'%';
+}
+
+let previewTimer;
+function setPreview(word, state, msg){
+  const p = $('#preview'); clearTimeout(previewTimer);
+  if (!word && !msg){ p.innerHTML=''; return; }
+  p.innerHTML = word ? `<span class="pill ${state||''}">${word}</span>` : `<span class="toast">${msg}</span>`;
+  if (state){
+    previewTimer = setTimeout(()=>{ p.innerHTML = msg && word ? `<span class="toast">${msg}</span>` : ''; if (msg && word) previewTimer = setTimeout(()=>p.innerHTML='', 1100); }, state==='bad'?450:650);
+  } else if (msg){ previewTimer = setTimeout(()=>p.innerHTML='', 1400); }
+}
+
+// ---------- wheel ----------
+let path = [], pointerPos = null, letterEls = [];
+function buildWheel(){
+  const wheel = $('#wheel');
+  wheel.querySelectorAll('.letter').forEach(e => e.remove());
+  letterEls = G.letters.map(ch => { const el = document.createElement('div'); el.className='letter'; el.textContent = ch; wheel.appendChild(el); return el; });
+  layoutLetters();
+}
+function layoutLetters(){
+  const n = letterEls.length, R = n <= 4 ? 30 : n <= 6 ? 33 : 35;
+  const size = $('#wheel').clientWidth;
+  letterEls.forEach((el, i) => {
+    const a = -Math.PI/2 + i*2*Math.PI/n;
+    el.style.left = (50 + R*Math.cos(a))+'%'; el.style.top = (50 + R*Math.sin(a))+'%';
+    el.style.fontSize = Math.round(size * (n<=5 ? .13 : .115))+'px';
+    el.style.width = (n<=5?26:n<=6?24:22)+'%';
+  });
+}
+function centers(){
+  const wr = $('#wheel').getBoundingClientRect();
+  return letterEls.map(el => { const r = el.getBoundingClientRect(); return {x:r.left+r.width/2-wr.left, y:r.top+r.height/2-wr.top, rad:r.width/2}; });
+}
+function hitTest(x, y){
+  const cs = centers();
+  for (let i=0;i<cs.length;i++){ const dx = x-cs[i].x, dy = y-cs[i].y; if (dx*dx+dy*dy <= (cs[i].rad*.9)**2) return i; }
+  return -1;
+}
+function drawLines(){
+  const svg = $('#lines'), cs = centers();
+  const size = $('#wheel').clientWidth;
+  svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+  let pts = path.map(i => `${cs[i].x},${cs[i].y}`);
+  if (pointerPos && path.length) pts.push(`${pointerPos.x},${pointerPos.y}`);
+  svg.innerHTML = pts.length > 1 ? `<polyline points="${pts.join(' ')}" fill="none" stroke="#d4202f" stroke-width="${Math.max(6,size*.03)}" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>` : '';
+  letterEls.forEach((el,i)=> el.classList.toggle('sel', path.includes(i)));
+  if (path.length){ clearTimeout(previewTimer); $('#preview').innerHTML = `<span class="pill">${path.map(i => G.letters[i]).join('')}</span>`; }
+}
+function local(e){ const r = $('#wheel').getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; }
+let dragging = false;
+$('#wheel').addEventListener('pointerdown', e => {
+  if (!G || G.view) return;
+  const p = local(e), i = hitTest(p.x, p.y);
+  if (i < 0) return;
+  dragging = true; path = [i]; pointerPos = p;
+  try { $('#wheel').setPointerCapture(e.pointerId); } catch(_) {}
+  drawLines(); e.preventDefault();
+});
+$('#wheel').addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const p = local(e); pointerPos = p;
+  const i = hitTest(p.x, p.y);
+  if (i >= 0){
+    if (path.length >= 2 && path[path.length-2] === i) path.pop();
+    else if (!path.includes(i)) path.push(i);
+  }
+  drawLines();
+});
+function endDrag(){
+  if (!dragging) return;
+  dragging = false;
+  const word = path.map(i => G.letters[i]).join('');
+  path = []; pointerPos = null; drawLines();
+  submit(word);
+}
+$('#wheel').addEventListener('pointerup', endDrag);
+$('#wheel').addEventListener('pointercancel', endDrag);
+
+$('#shuffleBtn').onclick = () => {
+  if (!G || G.view) return;
+  const old = G.letters.join('');
+  for (let t=0;t<10 && G.letters.join('')===old;t++){
+    for (let i=G.letters.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [G.letters[i],G.letters[j]]=[G.letters[j],G.letters[i]]; }
+  }
+  letterEls.forEach((el,i)=> el.textContent = G.letters[i]);
+  persistCur();
+};
+$('#hintBtn').onclick = () => { if (G && !G.view) hint(1, HINT); };
+$('#rocketBtn').onclick = () => { if (G && !G.view) hint(4, ROCKET); };
+$('#preview').addEventListener('click', e => { if (e.target.closest('[data-replay]') && G) startLevel(G.mode, G.idx); });
+$('#bonusBtn').onclick = () => {
+  const list = G.bonusFound.length ? `<div class="bonus-list">${G.bonusFound.map(w=>`<span>${w}</span>`).join('')}</div>` : '<p>None yet. Look for valid words that are not in the grid.</p>';
+  openCard(`<h2>Bonus words</h2><p>Found ${G.bonusFound.length} of ${G.lv.bonus.length}. Every ${METER} bonus words you earn ${METER_REWARD} coins (${S.meter}/${METER}).</p>${list}<button class="btn" type="button" data-act="close">Close</button>`);
+};
+
+// ---------- overlay ----------
+function openCard(html){ if (!html.includes('id="huntTime"') && !html.includes('No hunt in progress')) $('#card').classList.remove('hunt-card'); $('#card').innerHTML = html; $('#overlay').hidden = false; $('#card').scrollTop = 0; }
+function closeCard(){ $('#overlay').hidden = true; }
+$('#overlay').addEventListener('click', e => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (!act) return;
+  closeCard(); winShown = false;
+  const [a, arg] = act.split(':');
+  if (a==='next') startLevel('main', G.idx+1);
+  if (a==='main') playMain();
+  if (a==='bonus') startLevel('bonus', +arg);
+  if (a==='view') { const [m, i] = arg.split('-'); startLevel(m, +i, {view:true}); }
+  if (a==='replay') { const [m, i] = arg.split('-'); startLevel(m, +i); }
+  if (a==='region') { G=null; openRegion(+arg); }
+  if (a==='home') { G=null; show('home'); }
+  if (a==='play') playMain();
+});
+
+function helpCard(first){
+  openCard(`<h2>How to play</h2>
+  <ul class="rules">
+   <li>Drag your finger across the letters on the wheel to spell a word, then lift.</li>
+   <li>Correct words appear in the grid. Complete the grid to move on to the next city.</li>
+   <li>Other valid words are <b>bonus</b> words: every ${METER} bonus words earn you ${METER_REWARD} coins.</li>
+   <li>Spend coins on the <b>light bulb</b> (one letter, ${HINT}) or the <b>rocket</b> (four letters, ${ROCKET}).</li>
+   <li>Now and then the <b>Letter hunt</b> begins, a timed event lasting from 1 day to 2 weeks: uncover the squares with a golden dot to complete the hidden words.</li>
+   <li>At the end of each level you get a card about the city and its position on the map. You can read it again from the route with the <b>i</b> button.</li>
+   <li>Complete all the cities of a stage to open the <b>treasure chest</b>, collect the postcard and unlock the <b>bonus level</b> (+${BONUS_REWARD} coins).</li>
+  </ul>
+  <button class="btn primary" type="button" data-act="${first?'play':'close'}">${first?"Let's go":'Got it'}</button>`);
+}
+
+function playMain(){
+  if (S.level >= total){ show('trail'); renderTrail(); return; }
+  startLevel('main', S.level);
+}
+
+$('#playBtn').onclick = () => { if (!S.seenHelp){ S.seenHelp = true; save(); helpCard(true); } else playMain(); };
+$('#dailyBtn').onclick = () => startLevel('daily', dailyIndex());
+$('#trailBtn').onclick = () => { show('trail'); renderTrail(); };
+$('#helpBtn').onclick = () => helpCard(false);
+$('#huntBtn').onclick = huntCard;
+$('#albumBtn').onclick = () => {
+  const n = Object.keys(S.chests).length;
+  openCard(`<h2>Postcard album</h2><p>${n} of ${REGIONS.length} stages completed.</p>
+    <div class="album">${REGIONS.map((r,i) => S.chests[i] ? postcard(i) : `<div class="locked">${r.n}<br>to conquer</div>`).join('')}</div>
+    <button class="btn" type="button" data-act="close">Close</button>`);
+};
+document.querySelectorAll('.back').forEach(b => b.onclick = () => {
+  if (G && G.mode !== 'daily' && !$('#game').hidden){ const ri = G.mode === 'bonus' ? G.idx : PROV[G.idx].ri; G = null; openRegion(ri); }
+  else { G = null; show('home'); }
+});
+$('#regionBack').onclick = () => { show('trail'); renderTrail(); };
+
+function renderTrail(){
+  setSky(['#2b4a6b','#d9a877']);
+  const cur = PROV[Math.min(S.level, total-1)].ri;
+  $('#trailList').innerHTML = REGIONS.map((r,i) => {
+    const doneN = Math.max(0, Math.min(r.p.length, S.level - r.start));
+    const unlocked = i <= cur || S.level >= total;
+    const full = doneN === r.p.length;
+    const sub = full ? (S.bonusDone[i] ? 'Stage and bonus completed' : 'Bonus level to play') : unlocked ? `${r.p.length} ${r.p.length===1?'city':'cities'}` : 'Locked';
+    return `<button class="stop" type="button" data-r="${i}" ${unlocked?'':'disabled'}>
+      <span class="n ${full && S.bonusDone[i] ? 'done':''}" style="background:linear-gradient(135deg,${r.c[0]},${r.c[1]})">${i+1}</span>
+      <span><b>${r.n}</b><small>${sub}</small></span>
+      <span class="prog">${doneN}/${r.p.length}${S.bonusDone[i]?' ★':''}</span>
+    </button>`;
+  }).join('');
+  $('#trailList').children[cur]?.scrollIntoView?.({block:'center'});
+}
+$('#trailList').addEventListener('click', e => {
+  const b = e.target.closest('.stop'); if (!b || b.disabled) return;
+  openRegion(+b.dataset.r);
+});
+
+function openRegion(ri){
+  const r = REGIONS[ri];
+  setSky(r.c);
+  $('#rTitle').textContent = r.n; $('#rSub').textContent = `Stage ${ri+1} of ${REGIONS.length}`;
+  const rows = r.p.map(([name, sig], pi) => {
+    const idx = r.start + pi, done = idx < S.level, open = idx <= S.level;
+    return `<div class="provrow"><button class="prov" type="button" data-l="${idx}" ${open?'':'disabled'}>
+      <span class="sig">${sig}</span>
+      <span><b>${name}</b><small>${done ? 'Completed · tap to review' : open ? 'To play' : 'Locked'} · ${DATA.levels[idx].words.length} words</small></span>
+      <span class="st">${done?'✓':''}</span></button>${done ? `<button class="infobtn" type="button" data-i="${idx}" aria-label="Card of ${name}">i</button>` : ''}</div>`;
+  });
+  const bOpen = regionDone(ri);
+  rows.push(`<button class="prov bonus" type="button" data-b="${ri}" ${bOpen?'':'disabled'}>
+      <span class="sig">★</span>
+      <span><b>Bonus level</b><small>${S.bonusDone[ri] ? 'Completed · tap to review' : bOpen ? `${DATA.bonus[ri].words.length} words · +${BONUS_REWARD} coins` : 'Complete all the cities to unlock it'}</small></span>
+      <span class="st">${S.bonusDone[ri]?'✓':''}</span></button>`);
+  $('#provList').innerHTML = `<div class="region-head"><p>${r.p.length} ${r.p.length===1?'city':'cities'} · treasure chest of ${chestReward(ri)} coins${S.chests[ri]?' (opened)':''}</p></div>` + rows.join('');
+  show('region');
+}
+$('#provList').addEventListener('click', e => {
+  const inf = e.target.closest('.infobtn');
+  if (inf){ openCard(`<h2>${PROV[+inf.dataset.i].name}</h2>${cityCard(+inf.dataset.i)}<button class="btn" type="button" data-act="close">Close</button>`); return; }
+  const b = e.target.closest('.prov'); if (!b || b.disabled) return;
+  const mode = b.dataset.b !== undefined ? 'bonus' : 'main', idx = mode === 'bonus' ? +b.dataset.b : +b.dataset.l;
+  if (!isDone(mode, idx)) { startLevel(mode, idx); return; }
+  const title = mode === 'bonus' ? 'Bonus: ' + REGIONS[idx].n : PROV[idx].name;
+  openCard(`<h2>${title}</h2><p><b>Completed ✓</b> You have already finished this grid.</p>
+    ${mode === 'main' ? cityCard(idx) : ''}
+    <button class="btn primary" type="button" data-act="view:${mode}-${idx}">View the completed grid</button>
+    <button class="btn" type="button" data-act="replay:${mode}-${idx}">Play again</button>
+    <button class="btn" type="button" data-act="close">Close</button>`);
+});
+
+let rt;
+window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(()=>{ if (G && !$('#game').hidden){ buildGrid(); layoutLetters(); } }, 120); });
+
+show('home');
+</script>
+
+</body></html>
